@@ -187,8 +187,10 @@
                 <div class="profile-name-dropdown" style="color:white;">
                     user_12345 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                 </div>
-                <!-- Right spacer to balance header -->
-                <div style="width:24px;"></div>
+                <!-- Admin Dashboard SVG icon -->
+                <div id="btn-admin-dashboard" onclick="app.openAdminDashboard()" style="display:none; cursor:pointer;" title="Admin Dashboard">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                </div>
             </div>
             
             <div class="profile-scroll-area">
@@ -206,10 +208,6 @@
                     <div class="profile-actions-row">
                         <button class="action-btn-gray" style="width:100%; max-width:200px;" onclick="app.openEditProfileModal()">Edit profile</button>
                     </div>
-                    
-                    <button id="btn-admin-dashboard" class="action-btn-gray" onclick="app.openAdminDashboard()" style="display:none; width:100%; margin-top:10px; background:rgba(255,44,85,0.1); color:var(--tiktok-red); border:1px solid rgba(255,44,85,0.3);">
-                        Admin Dashboard
-                    </button>
                 </div>
 
                 <div class="profile-tabs-2024">

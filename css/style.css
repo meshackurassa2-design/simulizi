@@ -470,7 +470,10 @@ body {
     height: 100%;
     padding-bottom: calc(var(--nav-height) + var(--safe-bottom));
     -webkit-overflow-scrolling: touch;
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
 }
+.profile-scroll-area::-webkit-scrollbar { display: none; }
 .profile-info-2024 { display: flex; flex-direction: column; align-items: center; padding: clamp(14px, 4vw, 22px) 16px 16px; }
 .profile-pic-large { width: clamp(80px, 22vw, 100px); height: clamp(80px, 22vw, 100px); border-radius: 50%; background: #222; margin-bottom: 12px; border: 2px solid rgba(255,255,255,0.1); }
 .profile-handle-text { font-weight: 600; font-size: clamp(13px, 3.5vw, 15px); margin-bottom: 16px; color: #fff; }
