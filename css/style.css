@@ -469,7 +469,7 @@ body {
 .profile-scroll-area::-webkit-scrollbar { display: none; }
 .profile-info-2024 { display: flex; flex-direction: column; align-items: center; padding: clamp(14px, 4vw, 22px) 16px 16px; }
 .profile-pic-large { width: clamp(80px, 22vw, 100px); height: clamp(80px, 22vw, 100px); border-radius: 50%; background: #222; margin-bottom: 12px; border: 2px solid rgba(255,255,255,0.1); }
-.profile-handle-text { font-weight: 600; font-size: clamp(13px, 3.5vw, 15px); margin-bottom: 16px; color: #fff; }
+.profile-handle-text { font-size: clamp(13px, 3.5vw, 15px); margin-bottom: 16px; color: #888; }
 .profile-stats-row { display: flex; gap: clamp(16px, 6vw, 30px); margin-bottom: 20px; }
 .stat-col { display: flex; flex-direction: column; align-items: center; }
 .stat-col .val { font-size: clamp(15px, 4.5vw, 18px); font-weight: 700; color: #fff; }

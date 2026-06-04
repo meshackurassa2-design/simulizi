@@ -499,10 +499,12 @@ class TikTokClone {
 
 
             let displayHandle = this.state.user.email;
+            let rawHandle = this.state.user.email.split('@')[0];
             if (this.state.user.user_metadata && this.state.user.user_metadata.username) {
                 displayHandle = '@' + this.state.user.user_metadata.username;
+                rawHandle = this.state.user.user_metadata.username;
             }
-            document.querySelector('.profile-handle-text').textContent = displayHandle;
+            document.querySelector('.profile-handle-text').textContent = rawHandle;
 
             // Show bio if available
             const bio = this.state.user.user_metadata?.bio || '';
@@ -911,11 +913,12 @@ class TikTokClone {
         if (followBtn) followBtn.style.display = 'block';
 
         const displayHandle = profile.username ? '@' + profile.username : '@user';
+        const rawHandle = profile.username || 'user';
         
         const headerName = document.querySelector('.profile-name-dropdown');
         if (headerName) headerName.innerHTML = displayHandle;
         
-        document.querySelector('.profile-handle-text').textContent = displayHandle;
+        document.querySelector('.profile-handle-text').textContent = rawHandle;
         
         const bioEl = document.getElementById('profile-bio-text');
         if (bioEl) bioEl.textContent = profile.bio || '';
