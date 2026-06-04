@@ -246,37 +246,6 @@ body {
     gap: clamp(12px, 3vw, 20px);
     z-index: 10;
 }
-/* ===== MUTE TOGGLE ===== */
-.mute-toggle-btn {
-    position: absolute;
-    top: calc(var(--safe-top) + 60px);
-    right: 14px;
-    z-index: 15;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: rgba(0,0,0,0.55);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(255,255,255,0.18);
-    border-radius: 20px;
-    padding: 6px 12px 6px 9px;
-    cursor: pointer;
-    transition: opacity 0.4s ease, transform 0.2s ease;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
-}
-.mute-toggle-btn:active { transform: scale(0.92); }
-.mute-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: white;
-    letter-spacing: 0.3px;
-    white-space: nowrap;
-}
-.mute-toggle-btn.unmuted .mute-label { display: none; }
-.mute-toggle-btn.unmuted { padding: 6px 9px; }
-.mute-toggle-btn.fade-out { opacity: 0; pointer-events: none; }
 .stack-item {
     display: flex;
     flex-direction: column;

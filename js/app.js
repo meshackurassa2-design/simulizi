@@ -62,39 +62,26 @@ class TikTokClone {
         this.authMode = 'signup';
         this.mediaRecorder = null;
         this.recordedBlob = null;
-        this.isMuted = true; // Start muted for autoplay compliance
         
+        // Listen for the first user interaction to unlock audio
+        this.audioUnlocked = false;
+        const unlockAudio = () => {
+            if (this.audioUnlocked) return;
+            this.audioUnlocked = true;
+            // Play the currently visible video
+            document.querySelectorAll('.media-video').forEach(v => {
+                const rect = v.getBoundingClientRect();
+                if (rect.top >= 0 && rect.bottom <= window.innerHeight) {
+                    v.play().catch(() => {});
+                }
+            });
+            document.removeEventListener('click', unlockAudio);
+            document.removeEventListener('touchstart', unlockAudio);
+        };
+        document.addEventListener('click', unlockAudio);
+        document.addEventListener('touchstart', unlockAudio);
+
         this.init();
-    }
-
-    toggleMute(btn) {
-        this.isMuted = !this.isMuted;
-        
-        // Toggle all videos on the page
-        document.querySelectorAll('.media-video').forEach(v => {
-            v.muted = this.isMuted;
-        });
-
-        // Update all mute buttons
-        document.querySelectorAll('.mute-toggle-btn').forEach(b => {
-            const mutedIcon = b.querySelector('.icon-muted');
-            const unmutedIcon = b.querySelector('.icon-unmuted');
-            const label = b.querySelector('.mute-label');
-
-            if (this.isMuted) {
-                if (mutedIcon) mutedIcon.style.display = '';
-                if (unmutedIcon) unmutedIcon.style.display = 'none';
-                b.classList.remove('unmuted');
-                if (label) label.textContent = 'Tap for sound';
-            } else {
-                if (mutedIcon) mutedIcon.style.display = 'none';
-                if (unmutedIcon) unmutedIcon.style.display = '';
-                b.classList.add('unmuted');
-                if (label) label.textContent = '';
-                // Fade out after 2s once sound is on
-                setTimeout(() => b.classList.add('fade-out'), 2000);
-            }
-        });
     }
 
     async init() {
@@ -983,7 +970,6 @@ class TikTokClone {
             const video = clone.querySelector('.media-video');
             
             video.src = media.video_url;
-            video.muted = this.isMuted; // respect current global mute state
             
             mediaItem.querySelector('.author-name').textContent = `@${media.author_username || 'user'}`;
             mediaItem.querySelector('.caption').innerHTML = (media.caption || '').replace(/#(\w+)/g, '<span class="tag">#$1</span>');
@@ -1370,7 +1356,15 @@ class TikTokClone {
 
                 if (entry.isIntersecting) {
                     if (!paywall || paywall.classList.contains('hidden')) {
-                        video.play().catch(() => {});
+                        // Attempt to play automatically (might be blocked until user interacts)
+                        const playPromise = video.play();
+                        if (playPromise !== undefined) {
+                            playPromise.catch(() => {
+                                // Autoplay with sound blocked. Will play when user interacts (unlockAudio)
+                                if (recordSpin) recordSpin.classList.add('paused');
+                                if (playPauseInd) playPauseInd.classList.remove('show');
+                            });
+                        }
                         if (recordSpin) recordSpin.classList.remove('paused');
                         if (playPauseInd) playPauseInd.classList.remove('show');
                     }
