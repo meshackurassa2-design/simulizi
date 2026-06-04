@@ -2010,6 +2010,123 @@ class TikTokClone {
         });
     }
 
+    async openFollowers() {
+        if (!this.state.isAuthenticated) return this.showAuthModal();
+        this.switchTab('followers-view');
+        const container = document.getElementById('followers-list-container');
+        container.innerHTML = '<div style="color:#aaa; text-align:center; margin-top:40px;">Loading followers...</div>';
+
+        const { data: followers, error } = await supabaseClient
+            .from('follows')
+            .select('follower_id, created_at')
+            .eq('following_id', this.state.user.id)
+            .order('created_at', { ascending: false });
+
+        if (error || !followers || followers.length === 0) {
+            container.innerHTML = '<div style="color:#aaa; text-align:center; margin-top:40px;">No followers yet.</div>';
+            return;
+        }
+
+        const followerIds = followers.map(f => f.follower_id);
+        const { data: profiles } = await supabaseClient
+            .from('profiles')
+            .select('id, username, avatar_url')
+            .in('id', followerIds);
+
+        const profileMap = {};
+        if (profiles) profiles.forEach(p => profileMap[p.id] = p);
+
+        container.innerHTML = '';
+        followers.forEach(f => {
+            const profile = profileMap[f.follower_id];
+            if (!profile) return;
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.marginBottom = '20px';
+            
+            const avatar = profile.avatar_url ? profile.avatar_url : "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ccc'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+            row.innerHTML = `
+                <div style="width:40px; height:40px; border-radius:50%; background-image:url('${avatar}'); background-size:cover; background-position:center; margin-right:15px; background-color:#333;"></div>
+                <div style="flex:1;">
+                    <div style="font-weight:600; font-size:15px;">@${profile.username}</div>
+                    <div style="font-size:13px; color:#aaa;">Started following you</div>
+                </div>
+            `;
+            container.appendChild(row);
+        });
+    }
+
+    async openActivities() {
+        if (!this.state.isAuthenticated) return this.showAuthModal();
+        this.switchTab('activities-view');
+        const container = document.getElementById('activities-list-container');
+        container.innerHTML = '<div style="color:#aaa; text-align:center; margin-top:40px;">Loading activities...</div>';
+
+        // Get my videos
+        const { data: videos } = await supabaseClient.from('videos').select('id, video_url').eq('user_id', this.state.user.id);
+        if (!videos || videos.length === 0) {
+            container.innerHTML = '<div style="color:#aaa; text-align:center; margin-top:40px;">No activities yet. Post a video!</div>';
+            return;
+        }
+
+        const videoIds = videos.map(v => v.id);
+        const videoMap = {};
+        videos.forEach(v => videoMap[v.id] = v);
+
+        // Get likes on my videos
+        const { data: likes } = await supabaseClient.from('likes').select('user_id, video_id, created_at').in('video_id', videoIds);
+        // Get comments on my videos
+        const { data: comments } = await supabaseClient.from('comments').select('user_id, video_id, text, created_at').in('video_id', videoIds);
+
+        let activities = [];
+        if (likes) likes.forEach(l => activities.push({ type: 'like', ...l }));
+        if (comments) comments.forEach(c => activities.push({ type: 'comment', ...c }));
+
+        activities.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        if (activities.length === 0) {
+            container.innerHTML = '<div style="color:#aaa; text-align:center; margin-top:40px;">No activities yet.</div>';
+            return;
+        }
+
+        // Get user profiles
+        const userIds = [...new Set(activities.map(a => a.user_id))];
+        const { data: profiles } = await supabaseClient.from('profiles').select('id, username, avatar_url').in('id', userIds);
+        const profileMap = {};
+        if (profiles) profiles.forEach(p => profileMap[p.id] = p);
+
+        container.innerHTML = '';
+        activities.forEach(a => {
+            const profile = profileMap[a.user_id];
+            if (!profile || profile.id === this.state.user.id) return; // Don't show own activities
+            
+            const video = videoMap[a.video_id];
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.marginBottom = '20px';
+            
+            const avatar = profile.avatar_url ? profile.avatar_url : "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ccc'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+            
+            let actionText = a.type === 'like' ? 'liked your video' : `commented: "${a.text}"`;
+            
+            row.innerHTML = `
+                <div style="width:40px; height:40px; border-radius:50%; background-image:url('${avatar}'); background-size:cover; background-position:center; margin-right:15px; background-color:#333;"></div>
+                <div style="flex:1; padding-right:10px;">
+                    <span style="font-weight:600; font-size:15px;">@${profile.username}</span>
+                    <span style="font-size:14px; color:#ddd;">${actionText}</span>
+                </div>
+                <video src="${video.video_url}" style="width:40px; height:50px; object-fit:cover; border-radius:4px; background:#222;"></video>
+            `;
+            container.appendChild(row);
+        });
+        
+        if(container.innerHTML === '') {
+            container.innerHTML = '<div style="color:#aaa; text-align:center; margin-top:40px;">No new activities.</div>';
+        }
+    }
+
     setupProfileTabs() {
         // Add logout button if not exists
         const header = document.querySelector('.profile-header-2024');
