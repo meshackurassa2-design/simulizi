@@ -223,6 +223,11 @@ class TikTokClone {
             return;
         }
         
+        if (viewId === 'home-view' && this.state.feedType === 'trending') {
+            this.state.feedType = 'foryou';
+            this.renderFeed();
+        }
+        
         this.switchTab(viewId);
     }
 

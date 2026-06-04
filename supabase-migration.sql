@@ -138,4 +138,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- 12. Force Supabase API schema cache to reload
+NOTIFY pgrst, 'reload schema';
+
 -- Done! All tables, views, policies, and functions are now configured correctly.
