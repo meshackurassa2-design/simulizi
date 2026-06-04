@@ -89,7 +89,12 @@ SELECT
     p.username AS author_username,
     p.avatar_url AS author_avatar_url,
     (SELECT count(*) FROM likes l WHERE l.video_id = v.id) AS like_count,
-    (SELECT count(*) FROM comments c WHERE c.video_id = v.id) AS comment_count
+    (SELECT count(*) FROM comments c WHERE c.video_id = v.id) AS comment_count,
+    (
+        ( (SELECT count(*) FROM likes l WHERE l.video_id = v.id) * 3 ) +
+        ( (SELECT count(*) FROM comments c WHERE c.video_id = v.id) * 5 ) +
+        COALESCE(v.view_count, 0)
+    ) / POWER(GREATEST(EXTRACT(EPOCH FROM (NOW() - v.created_at))/3600, 0) + 2, 1.5) AS trending_score
 FROM videos v
 LEFT JOIN profiles p ON v.user_id = p.id;
 

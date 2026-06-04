@@ -1008,9 +1008,12 @@ class TikTokClone {
                 <div class="skeleton-item" style="bottom: 200px; right: 16px; width: 48px; height: 48px; border-radius: 50%;"></div>
             </div>`;
 
-        let query = supabaseClient.from('video_details').select('*').order('created_at', { ascending: false });
-
-        if (this.state.feedType === 'following') {
+        let query = supabaseClient.from('video_details').select('*');
+        
+        if (this.state.feedType === 'foryou') {
+            query = query.order('trending_score', { ascending: false });
+        } else if (this.state.feedType === 'following') {
+            query = query.order('created_at', { ascending: false });
             if (!this.state.isAuthenticated) {
                 container.innerHTML = '<div style="display:flex; justify-content:center; align-items:center; height:100%; color:white; padding:40px; text-align:center;">Please log in to see videos from creators you follow.</div>';
                 return;
