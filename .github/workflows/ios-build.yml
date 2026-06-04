@@ -25,14 +25,24 @@ jobs:
       - name: Install Capacitor
         run: npm install @capacitor/cli @capacitor/core @capacitor/ios
 
+      - name: Prepare Web Directory
+        run: |
+          mkdir www
+          cp -r css js assets index.html www/ 2>/dev/null || true
+          # Note: check-db.js and server.ps1 are not needed for the frontend app
+
       - name: Initialize Capacitor
         run: |
-          npx cap init "Simulizi" "com.meshackurassa2.simulizi" --web-dir .
+          npx cap init "Simulizi" "com.meshackurassa2.simulizi" --web-dir www
           npx cap add ios
 
       - name: Build Unsigned iOS App
         run: |
           cd ios/App
+          # Disable code signing in the Podfile to prevent Pod signing errors
+          sed -i '' "s/target.build_configurations.each do |config|/target.build_configurations.each do |config|\n      config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'\n      config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'/g" Podfile
+          pod install
+          
           # Build for iOS device without code signing
           xcodebuild build \
             -workspace App.xcworkspace \
@@ -42,7 +52,9 @@ jobs:
             -derivedDataPath build \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_IDENTITY=""
+            CODE_SIGN_IDENTITY="" \
+            EXPANDED_CODE_SIGN_IDENTITY="" \
+            COMPILER_INDEX_STORE_ENABLE=NO
             
           # Package unsigned IPA
           mkdir -p Payload
