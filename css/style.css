@@ -24,23 +24,22 @@
 html {
     height: 100%;
     height: -webkit-fill-available;
+    width: 100%;
     overflow: hidden;
     overflow-x: hidden;
     position: fixed;
-    width: 100vw;
-    max-width: 100%;
 }
 
 body {
     height: 100%;
     height: -webkit-fill-available;
-    width: 100vw;
-    max-width: 100%;
+    width: 100%;
     background-color: var(--bg-dark);
     color: var(--text-main);
     overflow: hidden;
     overflow-x: hidden;
     overscroll-behavior-y: none;
+    overscroll-behavior-x: none;
     overscroll-behavior: none;
     position: fixed;
     top: 0;

@@ -34,6 +34,7 @@ jobs:
       - name: Initialize Capacitor
         run: |
           npx cap init "Simulizi" "com.meshackurassa2.simulizi" --web-dir www
+          node -e "const fs=require('fs'); let cfg=JSON.parse(fs.readFileSync('capacitor.config.json')); cfg.ios={scrollEnabled:false, backgroundColor:'#000000'}; fs.writeFileSync('capacitor.config.json', JSON.stringify(cfg, null, 2));"
           npx cap add ios
 
       - name: Generate Native App Icons
