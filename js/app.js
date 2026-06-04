@@ -177,17 +177,22 @@ class TikTokClone {
 
     async ensureProfileExists() {
         if (!this.state.user) return null;
-        const { data, error: selectError } = await supabaseClient.from('profiles').select('id').eq('id', this.state.user.id).single();
+        const { data, error: selectError } = await supabaseClient.from('profiles').select('id, avatar_url').eq('id', this.state.user.id).single();
         if (!data) {
             const handle = this.state.user.user_metadata?.username || this.state.user.email.split('@')[0];
+            const avatar = this.state.user.user_metadata?.avatar_url || '';
             const { error: insertError } = await supabaseClient.from('profiles').insert({
                 id: this.state.user.id,
-                username: handle
+                username: handle,
+                avatar_url: avatar
             });
             if (insertError) {
                 console.error("Profile insert failed:", insertError);
                 return insertError;
             }
+        } else if (!data.avatar_url && this.state.user.user_metadata?.avatar_url) {
+            // Update existing profile with missing avatar
+            await supabaseClient.from('profiles').update({ avatar_url: this.state.user.user_metadata.avatar_url }).eq('id', this.state.user.id);
         }
         return null;
     }
@@ -1303,6 +1308,14 @@ class TikTokClone {
             user_id: this.state.user.id,
             text: text
         }]).select('*, profiles(username, avatar_url)').single();
+
+        if (error) {
+            console.error("Comment error:", error);
+            alert("Failed to post comment. Did you run the SQL migration for the comments table? Error: " + error.message);
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            return;
+        }
 
         const list = document.getElementById('comments-list');
         // Remove empty placeholder if present
