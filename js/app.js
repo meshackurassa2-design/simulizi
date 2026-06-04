@@ -467,6 +467,10 @@ class TikTokClone {
                 uploadBtn.style.display = isVerified ? 'flex' : 'none';
             }
             
+            // Show/hide analytics button — only for verified creators
+            const analyticsBtn = document.getElementById('btn-analytics');
+            if (analyticsBtn) analyticsBtn.style.display = isVerified ? 'block' : 'none';
+
             const profileTabs = document.querySelector('.profile-tabs-2024');
             const profileGrid = document.querySelector('.profile-grid');
             if (profileTabs) profileTabs.style.display = isVerified ? 'flex' : 'none';
@@ -1379,16 +1383,24 @@ class TikTokClone {
 
         supabaseClient
             .from('comments')
-            .select('*, profiles(username, avatar_url)')
+            .select('id, text, created_at, user_id')
             .eq('video_id', media.id)
             .order('created_at', { ascending: true })
-            .then(({ data: comments, error }) => {
+            .then(async ({ data: comments, error }) => {
                 list.innerHTML = '';
                 if (error || !comments || comments.length === 0) {
                     list.innerHTML = `<div style="display:flex;justify-content:center;align-items:center;height:100%;color:#999;font-size:14px;">No comments yet. Be the first!</div>`;
                     return;
                 }
-                comments.forEach(c => this.renderCommentCard(c, list));
+                // Fetch profiles separately
+                const userIds = [...new Set(comments.map(c => c.user_id))];
+                const { data: profiles } = await supabaseClient.from('profiles').select('id, username, avatar_url').in('id', userIds);
+                const profileMap = {};
+                if (profiles) profiles.forEach(p => { profileMap[p.id] = p; });
+                comments.forEach(c => {
+                    c.profiles = profileMap[c.user_id] || null;
+                    this.renderCommentCard(c, list);
+                });
             });
     }
 
@@ -1452,19 +1464,26 @@ class TikTokClone {
         const username = this.state.user.user_metadata?.username || this.state.user.email.split('@')[0];
         const avatar = this.state.user.user_metadata?.avatar_url || null;
 
-        // Insert into DB
         const { data, error } = await supabaseClient.from('comments').insert([{
             video_id: media.id,
             user_id: this.state.user.id,
             text: text
-        }]).select('*, profiles(username, avatar_url)').single();
+        }]).select('id, text, created_at, user_id').single();
 
         if (error) {
             console.error("Comment error:", error);
-            alert("Failed to post comment. Did you run the SQL migration for the comments table? Error: " + error.message);
+            alert("Failed to post comment: " + error.message);
             btn.disabled = false;
             btn.style.opacity = '1';
             return;
+        }
+
+        // Attach local profile data for immediate render
+        if (data) {
+            data.profiles = {
+                username,
+                avatar_url: avatar
+            };
         }
 
         const list = document.getElementById('comments-list');
@@ -1522,7 +1541,7 @@ class TikTokClone {
             const tapLength = currentTime - lastTap;
             
             if (tapLength < 300 && tapLength > 0) {
-                // Double tap
+                // Double tap - trigger like
                 this.triggerLike(doubleTapHeart, likeBtn, videoId);
                 e.preventDefault();
             } else {
@@ -1539,11 +1558,7 @@ class TikTokClone {
             }
             lastTap = currentTime;
         });
-
-        // Like button explicit click
-        likeBtn.addEventListener('click', () => {
-            this.toggleLike(likeBtn, videoId);
-        });
+        // NOTE: Like button click is handled in renderFeedData. Do NOT add another listener here.
     }
 
     async toggleLike(likeBtn, videoId) {

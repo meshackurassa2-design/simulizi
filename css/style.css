@@ -284,14 +284,19 @@ body {
 }
 .follow-badge {
     position: absolute;
-    bottom: -8px; left: 50%;
+    bottom: -10px; left: 50%;
     transform: translateX(-50%);
-    width: 20px; height: 20px;
+    width: 22px; height: 22px;
     background: var(--tiktok-red);
     border-radius: 50%;
     display: flex; justify-content: center; align-items: center;
-    box-shadow: 0 2px 6px rgba(255,44,85,0.6);
-    border: 2px solid black;
+    box-shadow: 0 2px 8px rgba(254,44,85,0.7);
+    border: 2px solid #000;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.follow-badge:active {
+    transform: translateX(-50%) scale(0.9);
 }
 .record-spin { margin-top: 8px; animation: spin 4s linear infinite; }
 .record-spin.paused { animation-play-state: paused; }
