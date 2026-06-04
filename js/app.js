@@ -81,6 +81,7 @@ class TikTokClone {
             if (session) {
                 this.state.isAuthenticated = true;
                 this.state.user = session.user;
+                await this.ensureProfileExists();
                 this.updateProfileUI();
             } else {
                 // Force login to see content
@@ -91,10 +92,11 @@ class TikTokClone {
             }
 
             // Listen for auth changes
-            supabaseClient.auth.onAuthStateChange((event, session) => {
+            supabaseClient.auth.onAuthStateChange(async (event, session) => {
                 if (event === 'SIGNED_IN') {
                     this.state.isAuthenticated = true;
                     this.state.user = session.user;
+                    await this.ensureProfileExists();
                     this.updateProfileUI();
                     const closeBtn = document.querySelector('.auth-close');
                     if(closeBtn) closeBtn.style.display = 'block'; // Restore close button
@@ -121,14 +123,34 @@ class TikTokClone {
         }
     }
 
+    async ensureProfileExists() {
+        if (!this.state.user) return;
+        const { data, error } = await supabaseClient.from('profiles').select('id').eq('id', this.state.user.id).single();
+        if (!data) {
+            const handle = this.state.user.user_metadata?.username || this.state.user.email.split('@')[0];
+            await supabaseClient.from('profiles').insert({
+                id: this.state.user.id,
+                username: handle,
+                role: this.state.user.user_metadata?.role || 'watcher',
+                is_verified: false
+            });
+        }
+    }
+
     // --- NAVIGATION & AUTH ---
     handleNavClick(viewId) {
         const restrictedViews = ['upload-view', 'inbox-view', 'profile-view'];
         if (!this.state.isAuthenticated && restrictedViews.includes(viewId)) {
             this.showAuthModal();
-        } else {
-            this.switchTab(viewId);
+            return;
         }
+        
+        if (viewId === 'upload-view') {
+            document.getElementById('gallery-file-input').click();
+            return;
+        }
+        
+        this.switchTab(viewId);
     }
 
     showAuthModal() {
@@ -1139,32 +1161,40 @@ class TikTokClone {
     }
 
     _showPostForm(blobUrl) {
-        // Hide camera, show gallery/post mode
-        document.getElementById('upload-camera-mode').style.display = 'none';
-        const galleryMode = document.getElementById('upload-gallery-mode');
-        galleryMode.style.display = 'flex';
-
+        // Show post form directly
         const postForm = document.getElementById('upload-post-form');
-        postForm.style.display = 'flex';
+        if (postForm) postForm.style.display = 'flex';
 
         const preview = document.getElementById('gallery-preview-video');
-        preview.src = blobUrl;
-        preview.play();
+        if (preview) {
+            preview.src = blobUrl;
+            preview.play();
+        }
 
         // Reset progress bar
-        document.getElementById('upload-progress-bar-wrap').style.display = 'none';
-        document.getElementById('upload-progress-bar').style.width = '0%';
-        document.getElementById('upload-caption-input').value = '';
+        const progressWrap = document.getElementById('upload-progress-bar-wrap');
+        if (progressWrap) progressWrap.style.display = 'none';
+        
+        const progressBar = document.getElementById('upload-progress-bar');
+        if (progressBar) progressBar.style.width = '0%';
+        
+        const captionInput = document.getElementById('upload-caption-input');
+        if (captionInput) captionInput.value = '';
     }
 
     cancelUpload() {
         this.recordedBlob = null;
-        document.getElementById('gallery-preview-video').src = '';
-        document.getElementById('gallery-file-input').value = '';
-        document.getElementById('upload-post-form').style.display = 'none';
-        document.getElementById('upload-gallery-mode').style.display = 'none';
-        // Go back to camera
-        this.startCamera();
+        const preview = document.getElementById('gallery-preview-video');
+        if (preview) preview.src = '';
+        
+        const fileInput = document.getElementById('gallery-file-input');
+        if (fileInput) fileInput.value = '';
+        
+        const postForm = document.getElementById('upload-post-form');
+        if (postForm) postForm.style.display = 'none';
+        
+        // Go back to home view instead of camera
+        this.switchTab('home-view');
     }
 
     async uploadVideo() {
