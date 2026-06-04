@@ -458,6 +458,12 @@
     <template id="media-template">
         <div class="media-item">
             <video class="media-video" loop playsinline muted></video>
+            <!-- Mute / Unmute pill -->
+            <div class="mute-toggle-btn" onclick="app.toggleMute(this)">
+                <svg class="icon-muted" width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M16.5 12A4.5 4.5 0 0 0 14 7.97V10.18L16.45 12.63C16.48 12.43 16.5 12.22 16.5 12ZM19 12C19 12.94 18.8 13.82 18.46 14.64L19.97 16.15C20.63 14.91 21 13.5 21 12C21 7.72 18.01 4.14 14 3.23V5.29C16.89 6.15 19 8.83 19 12ZM4.27 3L3 4.27 7.73 9H3V15H7L12 20V13.27L16.25 17.52C15.58 18.04 14.83 18.45 14 18.7V20.76C15.38 20.45 16.63 19.82 17.68 18.96L19.73 21 21 19.73 12 10.73 4.27 3ZM12 4L9.91 6.09 12 8.18V4Z"/></svg>
+                <svg class="icon-unmuted" width="18" height="18" viewBox="0 0 24 24" fill="white" style="display:none;"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+                <span class="mute-label">Tap for sound</span>
+            </div>
             <div class="play-pause-indicator hidden">
                 <svg width="64" height="64" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
             </div>
