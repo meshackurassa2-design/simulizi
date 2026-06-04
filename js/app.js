@@ -1048,13 +1048,11 @@ class TikTokClone {
                 
                 bookmarked = !bookmarked;
                 if (bookmarked) {
-                    bookmarkIcon.setAttribute('fill', '#eab308'); // yellow fill
-                    bookmarkIcon.setAttribute('stroke', '#eab308');
+                    bookmarkIcon.setAttribute('fill', '#eab308');
                     baseBookmarks++;
                     bookmarksCount.textContent = baseBookmarks;
                 } else {
-                    bookmarkIcon.setAttribute('fill', 'rgba(0,0,0,0.3)');
-                    bookmarkIcon.setAttribute('stroke', 'white');
+                    bookmarkIcon.setAttribute('fill', 'white');
                     baseBookmarks--;
                     bookmarksCount.textContent = baseBookmarks;
                 }
