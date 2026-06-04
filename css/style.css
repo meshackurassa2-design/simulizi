@@ -489,4 +489,13 @@ body {
     }
 }
 
+/* ===================== iOS TOGGLE ===================== */
+.ios-toggle {
+    width: 44px; height: 24px; background: #555; border-radius: 12px; position: relative; cursor: pointer; transition: background 0.3s;
+}
+.ios-toggle.active { background: #5ce1e6; }
+.ios-toggle-knob {
+    width: 20px; height: 20px; background: white; border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: transform 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+.ios-toggle.active .ios-toggle-knob { transform: translateX(20px); }
 

@@ -1185,6 +1185,50 @@ class TikTokClone {
         if (captionInput) captionInput.value = '';
     }
 
+    mockEditAction(action) {
+        const toast = document.getElementById('simulated-edit-toast');
+        const textOverlay = document.getElementById('simulated-text-overlay');
+        const cropOverlay = document.getElementById('simulated-crop-overlay');
+        const preview = document.getElementById('gallery-preview-video');
+        
+        if (!toast) return;
+        toast.style.display = 'block';
+        toast.style.opacity = '1';
+        
+        if (action === 'trim') {
+            toast.textContent = 'Simulating Trim...';
+        } else if (action === 'text') {
+            if (textOverlay.style.display === 'none') {
+                textOverlay.style.display = 'block';
+                toast.textContent = 'Text Added! (Drag to move)';
+            } else {
+                textOverlay.style.display = 'none';
+                toast.textContent = 'Text Removed';
+            }
+        } else if (action === 'stickers') {
+            toast.textContent = 'Stickers feature coming soon!';
+        } else if (action === 'filters') {
+            toast.textContent = 'Cycling Filter...';
+            if (!this.filterIdx) this.filterIdx = 0;
+            const filters = ['none', 'grayscale(100%)', 'sepia(100%)', 'invert(100%)', 'hue-rotate(90deg)'];
+            this.filterIdx = (this.filterIdx + 1) % filters.length;
+            if (preview) preview.style.filter = filters[this.filterIdx];
+        } else if (action === 'crop') {
+            if (cropOverlay.style.display === 'none') {
+                cropOverlay.style.display = 'block';
+                toast.textContent = 'Crop Mode Active';
+            } else {
+                cropOverlay.style.display = 'none';
+                toast.textContent = 'Crop Applied';
+            }
+        }
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => { toast.style.display = 'none'; }, 300);
+        }, 1500);
+    }
+
     cancelUpload() {
         this.recordedBlob = null;
         const preview = document.getElementById('gallery-preview-video');
@@ -1202,6 +1246,9 @@ class TikTokClone {
 
     async uploadVideo() {
         if (!this.recordedBlob) return;
+        
+        // Guarantee profile exists so foreign key doesn't fail
+        await this.ensureProfileExists();
 
         const caption = (document.getElementById('upload-caption-input')?.value || '').trim() || 'New Simulizi!';
         const btn = document.getElementById('btn-post-now');
