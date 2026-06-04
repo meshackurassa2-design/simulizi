@@ -93,7 +93,7 @@ SELECT
     (
         ( (SELECT count(*) FROM likes l WHERE l.video_id = v.id) * 3 ) +
         ( (SELECT count(*) FROM comments c WHERE c.video_id = v.id) * 5 ) +
-        COALESCE(v.view_count, 0)
+        COALESCE(v.view_count, 0) + 1
     ) / POWER(GREATEST(EXTRACT(EPOCH FROM (NOW() - v.created_at))/3600, 0) + 2, 1.5) AS trending_score
 FROM videos v
 LEFT JOIN profiles p ON v.user_id = p.id;

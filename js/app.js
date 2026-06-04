@@ -1011,7 +1011,7 @@ class TikTokClone {
         let query = supabaseClient.from('video_details').select('*');
         
         if (this.state.feedType === 'foryou') {
-            query = query.order('trending_score', { ascending: false });
+            query = query.order('trending_score', { ascending: false }).order('created_at', { ascending: false });
         } else if (this.state.feedType === 'following') {
             query = query.order('created_at', { ascending: false });
             if (!this.state.isAuthenticated) {
