@@ -1598,7 +1598,7 @@ class TikTokClone {
                                 if (vidId && (!this.state.viewedVideos || !this.state.viewedVideos.has(vidId))) {
                                     if (!this.state.viewedVideos) this.state.viewedVideos = new Set();
                                     this.state.viewedVideos.add(vidId);
-                                    supabaseClient.rpc('increment_view_count', { vid: vidId }).catch(e => console.error(e));
+                                    supabaseClient.rpc('increment_view_count', { vid: vidId }).then(({error}) => { if(error) console.error(error); });
                                 }
                             }).catch(() => {
                                 // Autoplay with sound blocked. Will play when user interacts (unlockAudio)
@@ -1616,7 +1616,7 @@ class TikTokClone {
                     if (watchStart && vidId) {
                         const secondsWatched = Math.floor((Date.now() - parseInt(watchStart)) / 1000);
                         if (secondsWatched > 0) {
-                            supabaseClient.rpc('add_watch_time', { vid: vidId, seconds: secondsWatched }).catch(e => console.error(e));
+                            supabaseClient.rpc('add_watch_time', { vid: vidId, seconds: secondsWatched }).then(({error}) => { if(error) console.error(error); });
                         }
                         delete entry.target.dataset.watchStart;
                     }
