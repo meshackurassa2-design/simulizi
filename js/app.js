@@ -1161,6 +1161,9 @@ class TikTokClone {
     }
 
     _showPostForm(blobUrl) {
+        // Make sure the upload view is visible first!
+        this.switchTab('upload-view');
+        
         // Show post form directly
         const postForm = document.getElementById('upload-post-form');
         if (postForm) postForm.style.display = 'flex';
