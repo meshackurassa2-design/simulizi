@@ -145,7 +145,7 @@
 
 
         <!-- 4. INBOX VIEW (2024 Strict Layout) -->
-        <section id="inbox-view" class="view hidden" style="background:#fff; color:#000;">
+        <section id="inbox-view" class="view hidden" style="background:#000; color:#fff;">
             <div class="inbox-header-2024">
                 <div style="width:24px;"></div>
                 <h2 style="font-size:17px; font-weight:600;">Inbox</h2>
@@ -438,12 +438,12 @@
     </div>
 
     <!-- SEARCH OVERLAY (fixed, outside app-container so switchTab never hides it) -->
-    <div id="search-view" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#fff; z-index:9000; flex-direction:column;">
-        <div style="display:flex; align-items:center; padding:calc(12px + var(--safe-top, env(safe-area-inset-top, 0px))) 15px 12px 15px; border-bottom:1px solid #eee; background:#fff;">
-            <svg onclick="app.closeSearch()" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" style="margin-right:12px; flex-shrink:0; cursor:pointer;"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+    <div id="search-view" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#000; z-index:2000; flex-direction:column; color:#fff;">
+        <div style="display:flex; align-items:center; padding:calc(12px + var(--safe-top, env(safe-area-inset-top, 0px))) 15px 12px 15px; border-bottom:1px solid #eee; background:#000;">
+            <svg onclick="app.closeSearch()" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" style="margin-right:12px; flex-shrink:0; cursor:pointer;"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
             <div style="flex-grow:1; position:relative;">
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); pointer-events:none;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                <input type="text" id="search-input" placeholder="Search accounts and videos..." autocomplete="off" style="width:100%; padding:10px 10px 10px 36px; border:none; background:#f1f1f1; border-radius:8px; font-size:15px; outline:none;" oninput="app.performSearch(this.value)">
+                <input type="text" id="search-input" placeholder="Search accounts and videos..." autocomplete="off" style="width:100%; padding:10px 10px 10px 36px; border:none; background:#333; border-radius:8px; font-size:15px; outline:none; color:#fff;" oninput="app.performSearch(this.value)">
             </div>
             <span onclick="app.performSearch(document.getElementById('search-input').value)" style="margin-left:14px; color:#FE2C55; font-weight:700; cursor:pointer; white-space:nowrap;">Search</span>
         </div>

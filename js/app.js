@@ -998,7 +998,15 @@ class TikTokClone {
         if (this.isProfileVideoMode) return; // Managed by openProfileVideo
 
         const container = document.getElementById('feed-container');
-        container.innerHTML = '<div style="display:flex; justify-content:center; align-items:center; height:100%;"><div class="record-spin" style="border-top-color:#fff;"></div></div>';
+        container.innerHTML = `
+            <div class="skeleton-bg">
+                <div class="skeleton-item" style="bottom: 20px; left: 16px; width: 60%; height: 20px;"></div>
+                <div class="skeleton-item" style="bottom: 50px; left: 16px; width: 40%; height: 24px;"></div>
+                <div class="skeleton-item" style="bottom: 20px; right: 16px; width: 40px; height: 40px; border-radius: 50%;"></div>
+                <div class="skeleton-item" style="bottom: 80px; right: 16px; width: 40px; height: 40px; border-radius: 50%;"></div>
+                <div class="skeleton-item" style="bottom: 140px; right: 16px; width: 40px; height: 40px; border-radius: 50%;"></div>
+                <div class="skeleton-item" style="bottom: 200px; right: 16px; width: 48px; height: 48px; border-radius: 50%;"></div>
+            </div>`;
 
         let query = supabaseClient.from('video_details').select('*').order('created_at', { ascending: false });
 
