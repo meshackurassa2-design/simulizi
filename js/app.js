@@ -1044,6 +1044,13 @@ class TikTokClone {
             mediaItem.querySelector('.comments-count').textContent = 0; // Not implemented yet
             mediaItem.querySelector('.marquee-content').textContent = `Original Sound - @${media.author_username || 'user'}`;
 
+            const profileImg = mediaItem.querySelector('.profile-img');
+            if (media.author_avatar_url) {
+                profileImg.style.backgroundImage = `url('${media.author_avatar_url}')`;
+            } else {
+                profileImg.style.backgroundImage = `url('https://ui-avatars.com/api/?name=${media.author_username || 'user'}&background=333&color=fff')`;
+            }
+
             // Store ID on the DOM element for likes/unlocks
             mediaItem.dataset.videoId = media.id;
             

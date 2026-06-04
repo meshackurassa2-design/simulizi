@@ -256,25 +256,11 @@ body {
     user-select: none;
 }
 .stack-item:active { transform: scale(0.72); }
-.stack-item:active .action-icon-wrap { box-shadow: 0 0 0 2px rgba(255,255,255,0.4), 0 4px 20px rgba(0,0,0,0.5); }
-.action-icon-wrap {
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    background: rgba(30,30,30,0.55);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1.5px solid rgba(255,255,255,0.15);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 5px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12);
-    transition: box-shadow 0.2s ease, transform 0.15s cubic-bezier(0.34,1.56,0.64,1);
-}
-.action-icon-wrap svg {
-    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.5));
+
+.stack-item svg {
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.8));
     transition: fill 0.25s ease, transform 0.2s ease;
+    margin-bottom: 5px;
 }
 .heart-icon { fill: white; }
 .stack-item:active svg { filter: drop-shadow(0 0 12px rgba(255,255,255,0.6)); }
@@ -290,7 +276,9 @@ body {
     width: 46px; height: 46px;
     border-radius: 50%;
     border: 2px solid white;
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background-color: #333;
+    background-size: cover;
+    background-position: center;
     box-shadow: 0 2px 12px rgba(0,0,0,0.5);
 }
 .follow-badge {

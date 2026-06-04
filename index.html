@@ -458,7 +458,10 @@
         <div class="media-item">
             <video class="media-video" loop playsinline></video>
             <div class="play-pause-indicator hidden">
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                <!-- Standard sleek play icon -->
+                <svg width="72" height="72" viewBox="0 0 24 24" fill="white" style="filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5)); opacity: 0.8;">
+                    <path d="M8 5v14l11-7z" stroke="rgba(0,0,0,0.2)" stroke-width="0.5"></path>
+                </svg>
             </div>
             <div class="double-tap-heart hidden">
                 <svg width="100" height="100" viewBox="0 0 24 24" fill="var(--tiktok-red)"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
@@ -470,39 +473,31 @@
                     <div class="follow-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="white"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg></div>
                 </div>
                 <div class="stack-item like-btn-action btn-like">
-                    <div class="action-icon-wrap">
-                        <!-- Bold filled heart -->
-                        <svg class="heart-icon" width="30" height="30" viewBox="0 0 32 32" fill="white" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M16 28S4 20.5 4 11.5C4 7.36 7.36 4 11.5 4c2.3 0 4.36 1.04 5.84 2.68C18.82 5.04 21.18 4 23.5 4 27.64 4 31 7.36 31 11.5 31 20.5 16 28 16 28z"/>
-                        </svg>
-                    </div>
+                    <!-- Bold filled heart -->
+                    <svg class="heart-icon" width="36" height="36" viewBox="0 0 32 32" fill="white" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M16 28S4 20.5 4 11.5C4 7.36 7.36 4 11.5 4c2.3 0 4.36 1.04 5.84 2.68C18.82 5.04 21.18 4 23.5 4 27.64 4 31 7.36 31 11.5 31 20.5 16 28 16 28z"/>
+                    </svg>
                     <span class="stack-text likes-count">1.2M</span>
                 </div>
                 <div class="stack-item btn-comment">
-                    <div class="action-icon-wrap">
-                        <!-- Bold speech bubble -->
-                        <svg width="28" height="28" viewBox="0 0 32 32" fill="white" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M16 2C8.27 2 2 7.82 2 15c0 3.74 1.64 7.1 4.27 9.5L5 29l5.18-2.59A15.4 15.4 0 0 0 16 28c7.73 0 14-5.82 14-13S23.73 2 16 2z"/>
-                        </svg>
-                    </div>
+                    <!-- Bold speech bubble -->
+                    <svg width="34" height="34" viewBox="0 0 32 32" fill="white" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M16 2C8.27 2 2 7.82 2 15c0 3.74 1.64 7.1 4.27 9.5L5 29l5.18-2.59A15.4 15.4 0 0 0 16 28c7.73 0 14-5.82 14-13S23.73 2 16 2z"/>
+                    </svg>
                     <span class="stack-text comments-count">0</span>
                 </div>
                 <div class="stack-item btn-bookmark">
-                    <div class="action-icon-wrap">
-                        <!-- Bold bookmark ribbon -->
-                        <svg class="bookmark-icon" width="26" height="30" viewBox="0 0 26 32" fill="white" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M3 0h20a2 2 0 0 1 2 2v30l-12-7L1 32V2A2 2 0 0 1 3 0z"/>
-                        </svg>
-                    </div>
+                    <!-- Bold bookmark ribbon -->
+                    <svg class="bookmark-icon" width="32" height="36" viewBox="0 0 26 32" fill="white" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 0h20a2 2 0 0 1 2 2v30l-12-7L1 32V2A2 2 0 0 1 3 0z"/>
+                    </svg>
                     <span class="stack-text bookmarks-count">0</span>
                 </div>
                 <div class="stack-item btn-share">
-                    <div class="action-icon-wrap">
-                        <!-- Bold share arrow -->
-                        <svg width="30" height="30" viewBox="0 0 32 32" fill="white" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M28 16l-12-12v7C6 12 2 18 2 26c2.4-4.8 7-8 14-8v7l12-9z"/>
-                        </svg>
-                    </div>
+                    <!-- Bold share arrow -->
+                    <svg width="36" height="36" viewBox="0 0 32 32" fill="white" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M28 16l-12-12v7C6 12 2 18 2 26c2.4-4.8 7-8 14-8v7l12-9z"/>
+                    </svg>
                     <span class="stack-text shares-count">Share</span>
                 </div>
                 <div class="stack-item record-spin">
