@@ -211,14 +211,20 @@
 
         <!-- 5. PROFILE VIEW (Premium Dark Layout) -->
         <section id="profile-view" class="view hidden" style="background:#000; color:#fff;">
-            <div class="profile-header-2024">
+            <div class="profile-header-2024" style="display:flex; justify-content:space-between; align-items:center; padding:15px;">
                 <div style="width:24px;"></div>
-                <div class="profile-name-dropdown" style="display:none; color:white;">
-                    user_12345 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                <div class="profile-name-dropdown" style="color:white; display:flex; align-items:center; font-weight:bold;">
+                    <span id="profile-view-username">User</span> <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" style="margin-left:5px;"><polyline points="6 9 12 15 18 9"></polyline></svg>
                 </div>
-                <!-- Admin Dashboard SVG icon -->
-                <div id="btn-admin-dashboard" onclick="app.openAdminDashboard()" style="display:none; cursor:pointer;" title="Admin Dashboard">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                <div style="display:flex; gap:15px; align-items:center;">
+                    <!-- Admin Dashboard SVG icon -->
+                    <div id="btn-admin-dashboard" onclick="app.openAdminDashboard()" style="display:none; cursor:pointer;" title="Admin Dashboard">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                    </div>
+                    <!-- Logout button -->
+                    <div onclick="app.logout()" style="cursor:pointer;" title="Log out">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                    </div>
                 </div>
             </div>
             

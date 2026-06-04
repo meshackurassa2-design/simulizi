@@ -447,6 +447,7 @@ class TikTokClone {
 
     async logout() {
         await supabaseClient.auth.signOut();
+        window.location.reload();
     }
 
     async updateProfileUI() {
@@ -2175,17 +2176,6 @@ class TikTokClone {
     }
 
     setupProfileTabs() {
-        // Add logout button if not exists
-        const header = document.querySelector('.profile-header-2024');
-        if (!document.getElementById('logout-btn')) {
-            const logoutBtn = document.createElement('div');
-            logoutBtn.id = 'logout-btn';
-            logoutBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>';
-            logoutBtn.style.cursor = 'pointer';
-            logoutBtn.onclick = () => this.logout();
-            header.appendChild(logoutBtn); // append to far right
-        }
-
         const tabs = document.querySelectorAll('.ptab');
         tabs.forEach(tab => {
             tab.addEventListener('click', () => {
