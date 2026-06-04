@@ -471,6 +471,19 @@ class TikTokClone {
             const analyticsBtn = document.getElementById('btn-analytics');
             if (analyticsBtn) analyticsBtn.style.display = isVerified ? 'block' : 'none';
 
+            // Reset profile UI specifically for current user
+            const backBtn = document.getElementById('profile-back-btn');
+            const spacer = document.getElementById('profile-header-spacer');
+            const logoutBtn = document.getElementById('btn-profile-logout');
+            const editBtn = document.getElementById('btn-edit-profile');
+            const followBtn = document.getElementById('btn-profile-follow');
+            
+            if (backBtn) backBtn.style.display = 'none';
+            if (spacer) spacer.style.display = 'block';
+            if (logoutBtn) logoutBtn.style.display = 'block';
+            if (editBtn) editBtn.style.display = 'block';
+            if (followBtn) followBtn.style.display = 'none';
+
             const profileTabs = document.querySelector('.profile-tabs-2024');
             const profileGrid = document.querySelector('.profile-grid');
             if (profileTabs) profileTabs.style.display = isVerified ? 'flex' : 'none';
@@ -864,6 +877,138 @@ class TikTokClone {
     closeAdminDashboard() {
         document.getElementById('admin-dashboard-modal').classList.add('hidden');
     }
+
+    async loadCreatorProfile(authorId) {
+        if (!this.state.isAuthenticated) return this.showAuthModal();
+        
+        // If clicking own profile, just open normally
+        if (authorId === this.state.user.id) {
+            return this.switchTab('profile-view');
+        }
+
+        // Fetch Creator Profile
+        const { data: profile, error } = await supabaseClient.from('profiles').select('*').eq('id', authorId).single();
+        if (error || !profile) {
+            console.error('Failed to load creator profile');
+            return;
+        }
+
+        // Set UI State
+        const backBtn = document.getElementById('profile-back-btn');
+        const spacer = document.getElementById('profile-header-spacer');
+        const logoutBtn = document.getElementById('btn-profile-logout');
+        const editBtn = document.getElementById('btn-edit-profile');
+        const analyticsBtn = document.getElementById('btn-analytics');
+        const adminBtn = document.getElementById('btn-admin-dashboard');
+        const followBtn = document.getElementById('btn-profile-follow');
+        
+        if (backBtn) backBtn.style.display = 'block';
+        if (spacer) spacer.style.display = 'none';
+        if (logoutBtn) logoutBtn.style.display = 'none';
+        if (editBtn) editBtn.style.display = 'none';
+        if (analyticsBtn) analyticsBtn.style.display = 'none';
+        if (adminBtn) adminBtn.style.display = 'none';
+        if (followBtn) followBtn.style.display = 'block';
+
+        const displayHandle = profile.username ? '@' + profile.username : '@user';
+        
+        const headerName = document.querySelector('.profile-name-dropdown');
+        if (headerName) headerName.innerHTML = displayHandle;
+        
+        document.querySelector('.profile-handle-text').textContent = displayHandle;
+        
+        const bioEl = document.getElementById('profile-bio-text');
+        if (bioEl) bioEl.textContent = profile.bio || '';
+        
+        const picEl = document.querySelector('.profile-pic-large');
+        if (picEl) {
+            if (profile.avatar_url) {
+                picEl.style.backgroundImage = `url('${profile.avatar_url}')`;
+                picEl.style.backgroundSize = 'cover';
+                picEl.style.backgroundPosition = 'center';
+            } else {
+                picEl.style.backgroundImage = '';
+            }
+        }
+
+        // Fetch creator stats
+        const { count: followersCount } = await supabaseClient.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', authorId);
+        const { count: followingCount } = await supabaseClient.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', authorId);
+        const { count: likesCount } = await supabaseClient.from('likes').select('*, videos!inner(user_id)', { count: 'exact', head: true }).eq('videos.user_id', authorId);
+
+        const followersStat = document.querySelector('#stat-followers .val');
+        const likesStat = document.querySelector('#stat-likes .val');
+        const followingStat = document.querySelector('#stat-following .val');
+        if (followersStat) followersStat.textContent = followersCount || 0;
+        if (likesStat) likesStat.textContent = likesCount || 0;
+        if (followingStat) followingStat.textContent = followingCount || 0;
+        
+        document.getElementById('stat-followers').style.display = 'flex';
+        document.getElementById('stat-likes').style.display = 'flex';
+        document.getElementById('stat-following').style.display = 'flex';
+
+        const profileTabs = document.querySelector('.profile-tabs-2024');
+        const profileGrid = document.querySelector('.profile-grid');
+        if (profileTabs) profileTabs.style.display = 'flex';
+        if (profileGrid) profileGrid.style.display = 'grid';
+
+        // Check if current user is already following this creator
+        const { data: followData } = await supabaseClient.from('follows').select('id').eq('follower_id', this.state.user.id).eq('following_id', authorId).maybeSingle();
+        
+        if (followData) {
+            followBtn.textContent = 'Following';
+            followBtn.style.background = '#333';
+            followBtn.style.borderColor = '#333';
+            followBtn.dataset.following = 'true';
+        } else {
+            followBtn.textContent = 'Follow';
+            followBtn.style.background = 'var(--tiktok-red)';
+            followBtn.style.borderColor = 'var(--tiktok-red)';
+            followBtn.dataset.following = 'false';
+        }
+
+        followBtn.onclick = async () => {
+            if (followBtn.dataset.following === 'true') {
+                // Unfollow
+                followBtn.textContent = 'Follow';
+                followBtn.style.background = 'var(--tiktok-red)';
+                followBtn.style.borderColor = 'var(--tiktok-red)';
+                followBtn.dataset.following = 'false';
+                await supabaseClient.from('follows').delete().eq('follower_id', this.state.user.id).eq('following_id', authorId);
+                // Also update local feed badges cache logic if you want
+            } else {
+                // Follow
+                followBtn.textContent = 'Following';
+                followBtn.style.background = '#333';
+                followBtn.style.borderColor = '#333';
+                followBtn.dataset.following = 'true';
+                await supabaseClient.from('follows').insert({ follower_id: this.state.user.id, following_id: authorId });
+            }
+        };
+
+        // Render Creator's Gallery
+        const { data: videos } = await supabaseClient.from('videos').select('id, video_url').eq('user_id', authorId).order('created_at', { ascending: false });
+        profileGrid.innerHTML = '';
+        if (videos) {
+            videos.forEach(v => {
+                const item = document.createElement('div');
+                item.className = 'grid-item';
+                const video = document.createElement('video');
+                video.src = v.video_url + '#t=0.1';
+                video.muted = true;
+                item.appendChild(video);
+                item.onclick = () => this.openProfileVideo(v.id);
+                profileGrid.appendChild(item);
+            });
+        }
+
+        this.switchTab('profile-view');
+    }
+
+    closeCreatorProfile() {
+        this.updateProfileUI(); // resets to normal user profile setup
+        this.switchTab('home-view'); // go back to feed
+    }
     
     async toggleUserVerification(userId, btn) {
         const currentlyVerified = btn.getAttribute('data-verified') === 'true';
@@ -1228,6 +1373,12 @@ class TikTokClone {
                 profileImg.style.backgroundSize = "cover";
                 profileImg.style.backgroundColor = "#333";
             }
+
+            // Interactivity for Creator Profile
+            const authorNameEl = mediaItem.querySelector('.author-name');
+            const profileImgBtn = mediaItem.querySelector('.btn-profile');
+            if (authorNameEl) authorNameEl.onclick = (e) => { e.stopPropagation(); this.loadCreatorProfile(media.author_id); };
+            if (profileImgBtn) profileImgBtn.onclick = (e) => { e.stopPropagation(); this.loadCreatorProfile(media.author_id); };
 
             // Store ID on the DOM element for likes/unlocks
             mediaItem.dataset.videoId = media.id;
