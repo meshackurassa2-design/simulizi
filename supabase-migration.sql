@@ -71,6 +71,7 @@ END $$;
 
 -- 8. Make sure the video details view is fully updated
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS view_count INT DEFAULT 0;
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS edits JSONB DEFAULT '{}'::jsonb;
 
 DROP VIEW IF EXISTS video_details;
 
@@ -84,6 +85,7 @@ SELECT
     v.is_premium,
     v.price,
     v.view_count,
+    v.edits,
     p.username AS author_username,
     p.avatar_url AS author_avatar_url,
     (SELECT count(*) FROM likes l WHERE l.video_id = v.id) AS like_count,

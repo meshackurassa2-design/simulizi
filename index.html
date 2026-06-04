@@ -91,22 +91,54 @@
                 <!-- Video Preview (Full Screen) -->
                 <div style="flex:1; position:relative; display:flex; align-items:center; justify-content:center; background:#111; overflow:hidden;">
                     <video id="gallery-preview-video" style="width:100%; height:100%; object-fit:contain; transition: filter 0.3s;" muted playsinline loop></video>
-                    <!-- Draggable text overlay (Simulated) -->
-                    <div id="simulated-text-overlay" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); background:rgba(0,0,0,0.5); color:white; padding:8px 16px; border-radius:8px; font-weight:bold; font-size:20px; white-space:nowrap; text-shadow:0 2px 4px rgba(0,0,0,0.8);">Hello Simulizi!</div>
-                    <!-- Crop overlay (Simulated) -->
-                    <div id="simulated-crop-overlay" style="display:none; position:absolute; top:10%; bottom:10%; left:5%; right:5%; border:2px dashed white; pointer-events:none; box-shadow:0 0 0 9999px rgba(0,0,0,0.5);"></div>
+                    <!-- Real Draggable Text Elements will be appended here via JS -->
+                    <div id="video-text-layer" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:5;"></div>
                     
-                    <!-- Professional Sleek Toolbar -->
-                    <div style="position:absolute; right:12px; top:10%; display:flex; flex-direction:column; gap:20px; align-items:center; background:rgba(0,0,0,0.4); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); padding:16px 8px; border-radius:30px; border:1px solid rgba(255,255,255,0.15); box-shadow:0 8px 32px rgba(0,0,0,0.3);">
-                        <div class="edit-toolbar-item" onclick="app.mockEditAction('trim')"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg><span>Edit</span></div>
-                        <div class="edit-toolbar-item" onclick="app.mockEditAction('text')"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg><span>Text</span></div>
-                        <div class="edit-toolbar-item" onclick="app.mockEditAction('stickers')"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg><span>Stickers</span></div>
-                        <div class="edit-toolbar-item" onclick="app.mockEditAction('filters')"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg><span>Filters</span></div>
-                        <div class="edit-toolbar-item" onclick="app.mockEditAction('crop')"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg><span>Crop</span></div>
+                    <!-- Real Crop Overlay -->
+                    <div id="crop-editor-overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10;">
+                        <div id="crop-box" style="position:absolute; top:10%; left:10%; width:80%; height:80%; border:2px solid white; box-shadow:0 0 0 9999px rgba(0,0,0,0.5); cursor:move;">
+                            <div class="crop-handle top-left" data-corner="tl"></div>
+                            <div class="crop-handle top-right" data-corner="tr"></div>
+                            <div class="crop-handle bottom-left" data-corner="bl"></div>
+                            <div class="crop-handle bottom-right" data-corner="br"></div>
+                        </div>
+                        <button onclick="app.applyCrop()" style="position:absolute; bottom:20px; right:20px; background:white; color:black; border:none; padding:8px 16px; border-radius:20px; font-weight:bold; cursor:pointer; pointer-events:auto;">Apply Crop</button>
                     </div>
                     
-                    <!-- Edit Toast (Simulated) -->
-                    <div id="simulated-edit-toast" style="display:none; position:absolute; bottom:20px; background:rgba(0,0,0,0.8); color:white; padding:10px 20px; border-radius:24px; font-size:14px; font-weight:600; transition:opacity 0.3s;">Applying Filter...</div>
+                    <!-- Professional Sleek Toolbar -->
+                    <div style="position:absolute; right:12px; top:10%; display:flex; flex-direction:column; gap:20px; align-items:center; background:rgba(0,0,0,0.4); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); padding:16px 8px; border-radius:30px; border:1px solid rgba(255,255,255,0.15); box-shadow:0 8px 32px rgba(0,0,0,0.3); z-index:15;">
+                        <div class="edit-toolbar-item" onclick="app.openTextEditor()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg><span>Text</span></div>
+                        <div class="edit-toolbar-item" onclick="app.mockEditAction('stickers')"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg><span>Stickers</span></div>
+                        <div class="edit-toolbar-item" onclick="app.toggleCropMode()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg><span>Crop</span></div>
+                    </div>
+                    
+                    <!-- Text Editor Full Screen Overlay -->
+                    <div id="text-editor-overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:20; flex-direction:column;">
+                        <div style="display:flex; justify-content:space-between; padding:20px;">
+                            <button onclick="app.closeTextEditor()" style="background:none; border:none; color:white; font-size:16px; font-weight:bold; cursor:pointer;">Cancel</button>
+                            <button onclick="app.addTextToVideo()" style="background:white; color:black; border:none; padding:6px 16px; border-radius:16px; font-weight:bold; cursor:pointer;">Done</button>
+                        </div>
+                        <div style="flex:1; display:flex; align-items:center; justify-content:center;">
+                            <input type="text" id="video-text-input" placeholder="Type something..." style="background:transparent; border:none; color:white; font-size:28px; font-weight:bold; text-align:center; outline:none; width:80%;">
+                        </div>
+                        <div style="padding:20px;">
+                            <!-- Fonts -->
+                            <div style="display:flex; gap:10px; overflow-x:auto; margin-bottom:15px; padding-bottom:5px;">
+                                <div class="font-btn active" data-font="sans-serif" style="font-family:sans-serif;">Classic</div>
+                                <div class="font-btn" data-font="Courier New" style="font-family:'Courier New', Courier, monospace;">Type</div>
+                                <div class="font-btn" data-font="Georgia" style="font-family:Georgia, serif;">Serif</div>
+                                <div class="font-btn" data-font="Impact" style="font-family:Impact, sans-serif;">Bold</div>
+                            </div>
+                            <!-- Colors -->
+                            <div style="display:flex; gap:15px; justify-content:center;">
+                                <div class="color-btn active" data-color="#ffffff" style="background:#ffffff;"></div>
+                                <div class="color-btn" data-color="#000000" style="background:#000000;"></div>
+                                <div class="color-btn" data-color="#ff004f" style="background:#ff004f;"></div>
+                                <div class="color-btn" data-color="#00f2fe" style="background:#00f2fe;"></div>
+                                <div class="color-btn" data-color="#ffcc00" style="background:#ffcc00;"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Bottom Post Section -->
