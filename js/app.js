@@ -444,6 +444,31 @@ class TikTokClone {
                 displayHandle = '@' + this.state.user.user_metadata.username;
             }
             document.querySelector('.profile-handle-text').textContent = displayHandle;
+
+            // Show bio if available
+            const bio = this.state.user.user_metadata?.bio || '';
+            let bioEl = document.getElementById('profile-bio-text');
+            if (!bioEl) {
+                bioEl = document.createElement('p');
+                bioEl.id = 'profile-bio-text';
+                bioEl.style.cssText = 'font-size:13px; color:#555; text-align:center; margin:6px 16px 0; line-height:1.5;';
+                const handleEl = document.querySelector('.profile-handle-text');
+                if (handleEl) handleEl.insertAdjacentElement('afterend', bioEl);
+            }
+            bioEl.textContent = bio;
+
+            // Show avatar in profile pic circle
+            const avatarUrl = this.state.user.user_metadata?.avatar_url || null;
+            const picEl = document.querySelector('.profile-pic-large');
+            if (picEl) {
+                if (avatarUrl) {
+                    picEl.style.backgroundImage = `url('${avatarUrl}')`;
+                    picEl.style.backgroundSize = 'cover';
+                    picEl.style.backgroundPosition = 'center';
+                } else {
+                    picEl.style.backgroundImage = '';
+                }
+            }
             
             // Also update the top left name
             const headerName = document.querySelector('.profile-name-dropdown');
@@ -572,41 +597,112 @@ class TikTokClone {
     }
 
     openEditProfileModal() {
-        document.getElementById('edit-profile-modal').classList.remove('hidden');
-        document.getElementById('edit-username').value = this.state.user?.user_metadata?.username || '';
+        const modal = document.getElementById('edit-profile-modal');
+        modal.classList.remove('hidden');
+
+        const user = this.state.user;
+        document.getElementById('edit-username').value = user?.user_metadata?.username || '';
+        document.getElementById('edit-bio').value = user?.user_metadata?.bio || '';
         document.getElementById('edit-profile-error').classList.add('hidden');
+
+        // Load current avatar
+        const avatarImg = document.getElementById('edit-profile-avatar-img');
+        const avatarPlaceholder = document.getElementById('edit-profile-avatar-placeholder');
+        const currentAvatar = user?.user_metadata?.avatar_url;
+        if (currentAvatar) {
+            avatarImg.src = currentAvatar;
+            avatarImg.style.display = 'block';
+            avatarPlaceholder.style.display = 'none';
+        } else {
+            avatarImg.style.display = 'none';
+            avatarPlaceholder.style.display = 'block';
+        }
+        this._pendingAvatarDataUrl = null;
     }
 
     closeEditProfileModal() {
         document.getElementById('edit-profile-modal').classList.add('hidden');
     }
 
+    handleAvatarChange(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const dataUrl = e.target.result;
+            this._pendingAvatarDataUrl = dataUrl;
+            const avatarImg = document.getElementById('edit-profile-avatar-img');
+            const avatarPlaceholder = document.getElementById('edit-profile-avatar-placeholder');
+            avatarImg.src = dataUrl;
+            avatarImg.style.display = 'block';
+            avatarPlaceholder.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+    }
+
     async saveProfile() {
         const username = document.getElementById('edit-username').value.trim();
+        const bio = document.getElementById('edit-bio').value.trim();
         const errorDiv = document.getElementById('edit-profile-error');
+
         if (!username) {
             errorDiv.textContent = 'Username cannot be empty';
             errorDiv.classList.remove('hidden');
             return;
         }
-        
+
         const btn = document.getElementById('btn-save-profile');
         btn.textContent = 'Saving...';
         btn.disabled = true;
-        
+
+        let avatarUrl = this.state.user?.user_metadata?.avatar_url || null;
+
+        // Upload avatar if a new one was selected
+        if (this._pendingAvatarDataUrl) {
+            try {
+                const fileInput = document.getElementById('edit-profile-avatar-input');
+                const file = fileInput.files[0];
+                if (file) {
+                    const ext = file.name.split('.').pop();
+                    const fileName = `avatars/${this.state.user.id}.${ext}`;
+                    const { data: uploadData, error: uploadError } = await supabaseClient.storage
+                        .from('videos')
+                        .upload(fileName, file, { upsert: true });
+                    if (!uploadError) {
+                        const { data: urlData } = supabaseClient.storage.from('videos').getPublicUrl(fileName);
+                        avatarUrl = urlData.publicUrl;
+                    } else {
+                        console.warn('Avatar upload failed:', uploadError.message);
+                        // Fallback: store as base64 in metadata (small images only)
+                        avatarUrl = this._pendingAvatarDataUrl;
+                    }
+                }
+            } catch(e) {
+                console.warn('Avatar upload error:', e);
+                avatarUrl = this._pendingAvatarDataUrl;
+            }
+        }
+
         const { data, error } = await supabaseClient.auth.updateUser({
-            data: { username: username }
+            data: { username, bio, avatar_url: avatarUrl }
         });
-        
+
         if (error) {
             errorDiv.textContent = error.message;
             errorDiv.classList.remove('hidden');
         } else {
             this.state.user = data.user;
+            // Also update profiles table
+            await supabaseClient.from('profiles').upsert({
+                id: this.state.user.id,
+                username,
+                bio,
+                avatar_url: avatarUrl
+            });
             this.updateProfileUI();
             this.closeEditProfileModal();
         }
-        
+
         btn.textContent = 'Save Changes';
         btn.disabled = false;
     }
@@ -984,32 +1080,142 @@ class TikTokClone {
     }
 
     openCommentsSheet(media) {
-        document.getElementById('comments-sheet').classList.remove('hidden');
-        document.getElementById('comments-list').innerHTML = '<div style="padding: 20px; text-align: center; color: #888; font-size: 14px;">No comments yet. Be the first to comment!</div>';
         this.currentMediaForComment = media;
+        const sheet = document.getElementById('comments-sheet');
+        const overlay = document.getElementById('comments-sheet-overlay');
+        overlay.style.display = 'block';
+        // Trigger slide up animation
+        requestAnimationFrame(() => {
+            sheet.style.transform = 'translateY(0)';
+        });
+
+        // Update title
+        const title = document.getElementById('comments-title');
+        if (title) title.textContent = 'Comments';
+
+        // Update input avatar
+        const inputAvatar = document.getElementById('comment-input-avatar');
+        const userAvatar = this.state.user?.user_metadata?.avatar_url;
+        if (inputAvatar) {
+            if (userAvatar) {
+                inputAvatar.innerHTML = `<img src="${userAvatar}" style="width:100%;height:100%;object-fit:cover;">`;
+            } else {
+                inputAvatar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#bbb" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
+            }
+        }
+
+        // Fetch real comments from supabase
+        const list = document.getElementById('comments-list');
+        list.innerHTML = `<div style="display:flex;justify-content:center;padding:30px;"><div style="width:24px;height:24px;border-radius:50%;border:3px solid #eee;border-top-color:var(--tiktok-red);animation:spin 0.8s linear infinite;"></div></div>`;
+
+        supabaseClient
+            .from('comments')
+            .select('*, profiles(username, avatar_url)')
+            .eq('video_id', media.id)
+            .order('created_at', { ascending: true })
+            .then(({ data: comments, error }) => {
+                list.innerHTML = '';
+                if (error || !comments || comments.length === 0) {
+                    list.innerHTML = `<div style="display:flex;justify-content:center;align-items:center;height:100%;color:#999;font-size:14px;">No comments yet. Be the first!</div>`;
+                    return;
+                }
+                comments.forEach(c => this.renderCommentCard(c, list));
+            });
+    }
+
+    renderCommentCard(comment, list) {
+        const username = comment.profiles?.username || 'user';
+        const avatar = comment.profiles?.avatar_url;
+        const time = this.timeAgo(comment.created_at);
+
+        const div = document.createElement('div');
+        div.style.cssText = 'display:flex; gap:12px; align-items:flex-start;';
+        div.innerHTML = `
+            <div style="width:40px;height:40px;min-width:40px;border-radius:50%;background:#eee;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+                ${avatar
+                    ? `<img src="${avatar}" style="width:100%;height:100%;object-fit:cover;">`
+                    : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`
+                }
+            </div>
+            <div style="flex:1;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                    <span style="font-weight:700;font-size:13px;color:#111;">@${username}</span>
+                    <span style="font-size:11px;color:#999;">${time}</span>
+                </div>
+                <div style="font-size:14px;color:#333;line-height:1.5;">${comment.text || ''}</div>
+            </div>
+            <button style="background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;padding-top:2px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                <span style="font-size:10px;color:#999;">0</span>
+            </button>
+        `;
+        list.appendChild(div);
+    }
+
+    timeAgo(dateStr) {
+        const diff = Date.now() - new Date(dateStr).getTime();
+        const s = Math.floor(diff / 1000);
+        if (s < 60) return `${s}s`;
+        if (s < 3600) return `${Math.floor(s/60)}m`;
+        if (s < 86400) return `${Math.floor(s/3600)}h`;
+        return `${Math.floor(s/86400)}d`;
     }
 
     closeCommentsSheet() {
-        document.getElementById('comments-sheet').classList.add('hidden');
+        const sheet = document.getElementById('comments-sheet');
+        const overlay = document.getElementById('comments-sheet-overlay');
+        sheet.style.transform = 'translateY(100%)';
+        overlay.style.display = 'none';
     }
 
-    postComment() {
+    async postComment() {
         if (!this.state.isAuthenticated) return this.showAuthModal();
         const input = document.getElementById('new-comment-input');
+        const btn = document.getElementById('btn-post-comment');
         const text = input.value.trim();
         if (!text) return;
 
-        const list = document.getElementById('comments-list');
-        if (list.innerHTML.includes('No comments yet')) list.innerHTML = '';
-        
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+
+        const media = this.currentMediaForComment;
         const username = this.state.user.user_metadata?.username || this.state.user.email.split('@')[0];
-        
-        const commentDiv = document.createElement('div');
-        commentDiv.style.padding = '10px 0';
-        commentDiv.innerHTML = `<strong style="font-size:13px; color:#555;">@${username}</strong><div style="font-size:14px; margin-top:4px;">${text}</div>`;
-        
-        list.appendChild(commentDiv);
+        const avatar = this.state.user.user_metadata?.avatar_url || null;
+
+        // Insert into DB
+        const { data, error } = await supabaseClient.from('comments').insert([{
+            video_id: media.id,
+            user_id: this.state.user.id,
+            text: text
+        }]).select('*, profiles(username, avatar_url)').single();
+
+        const list = document.getElementById('comments-list');
+        // Remove empty placeholder if present
+        if (list.textContent.includes('No comments yet')) list.innerHTML = '';
+
+        // Render card from response or locally
+        const commentData = data || {
+            text,
+            created_at: new Date().toISOString(),
+            profiles: { username, avatar_url: avatar }
+        };
+        this.renderCommentCard(commentData, list);
+
+        // Update comment count in feed
+        const mediaItems = document.querySelectorAll('.media-item');
+        mediaItems.forEach(item => {
+            if (item.dataset.videoId === media.id) {
+                const countEl = item.querySelector('.comments-count');
+                if (countEl) {
+                    countEl.textContent = parseInt(countEl.textContent || 0) + 1;
+                }
+            }
+        });
+
         input.value = '';
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        list.scrollTop = list.scrollHeight;
     }
 
     setupVideoInteractions(mediaItem, video) {

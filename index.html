@@ -374,30 +374,53 @@
             </div>
             <div class="auth-body" style="text-align: left;">
                 <div class="email-form">
+                    <div style="display:flex; flex-direction:column; align-items:center; margin-bottom:20px;">
+                        <div id="edit-profile-avatar-preview" style="width:80px; height:80px; border-radius:50%; background:#eee; margin-bottom:10px; overflow:hidden; display:flex; justify-content:center; align-items:center;">
+                            <img id="edit-profile-avatar-img" src="" style="width:100%; height:100%; object-fit:cover; display:none;">
+                            <svg id="edit-profile-avatar-placeholder" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                        </div>
+                        <label for="edit-profile-avatar-input" style="font-size:13px; color:var(--tiktok-red); font-weight:600; cursor:pointer;">Change Photo</label>
+                        <input type="file" id="edit-profile-avatar-input" accept="image/*" style="display:none;" onchange="app.handleAvatarChange(event)">
+                    </div>
+
                     <label style="font-size:14px; color:#555; font-weight:600;">Username</label>
                     <input type="text" id="edit-username" placeholder="Username" class="auth-input">
-                    <button class="auth-submit-btn" id="btn-save-profile" onclick="app.saveProfile()">Save Changes</button>
+
+                    <label style="font-size:14px; color:#555; font-weight:600; margin-top:12px; display:block;">About</label>
+                    <textarea id="edit-bio" placeholder="Add a bio to your profile" class="auth-input" style="resize:none; height:80px;"></textarea>
+
+                    <button class="auth-submit-btn" id="btn-save-profile" onclick="app.saveProfile()" style="margin-top:16px;">Save Changes</button>
                     <div id="edit-profile-error" class="auth-error hidden"></div>
                 </div>
             </div>
         </div>
         
         <!-- Comments Sheet Modal -->
-        <div id="comments-sheet" class="auth-modal hidden" style="z-index: 1002; height: 70%; bottom: 0; top: auto; border-radius: 12px 12px 0 0;">
-            <div class="auth-header" style="border-bottom: 1px solid #eee;">
+        <div id="comments-sheet" style="position:fixed; bottom:0; left:0; right:0; z-index:1002; max-width:480px; margin:0 auto; height:75%; background:#fff; border-radius:16px 16px 0 0; transform:translateY(100%); transition:transform 0.35s cubic-bezier(0.4,0,0.2,1); box-shadow: 0 -4px 30px rgba(0,0,0,0.15); display:flex; flex-direction:column;">
+            <!-- Drag handle -->
+            <div style="display:flex; justify-content:center; padding:10px;">
+                <div style="width:36px; height:4px; border-radius:2px; background:#ddd;"></div>
+            </div>
+            <!-- Header -->
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:0 16px 12px; border-bottom:1px solid #f1f1f2;">
                 <div style="width:24px;"></div>
-                <div style="font-weight:600; font-size:16px;" id="comments-title">Comments</div>
-                <svg class="auth-close" onclick="app.closeCommentsSheet()" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                <div style="font-weight:700; font-size:16px;" id="comments-title">Comments</div>
+                <svg onclick="app.closeCommentsSheet()" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round" style="cursor:pointer;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </div>
-            <div class="auth-body" style="padding: 10px; overflow-y: auto; height: calc(100% - 110px);" id="comments-list">
-                <!-- Mock comments -->
-                <div style="padding: 20px; text-align: center; color: #888; font-size: 14px;">No comments yet. Be the first to comment!</div>
+            <!-- Comment List -->
+            <div id="comments-list" style="flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:18px;">
+                <div style="display:flex; justify-content:center; align-items:center; height:100%; color:#999; font-size:14px;">No comments yet. Be the first!</div>
             </div>
-            <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 10px 15px; border-top: 1px solid #eee; background: white; display: flex; align-items: center; gap: 10px;">
-                <input type="text" id="new-comment-input" placeholder="Add comment..." style="flex: 1; border: none; background: #f1f1f2; padding: 12px 15px; border-radius: 20px; outline: none; font-size: 14px;">
-                <button onclick="app.postComment()" style="background: none; border: none; color: var(--tiktok-red); font-weight: 600; font-size: 14px;">Post</button>
+            <!-- Input Bar -->
+            <div style="padding:10px 14px; border-top:1px solid #f1f1f2; background:#fff; display:flex; align-items:center; gap:10px;">
+                <div id="comment-input-avatar" style="width:36px; height:36px; min-width:36px; border-radius:50%; background:#eee; overflow:hidden; display:flex; align-items:center; justify-content:center;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#bbb" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                </div>
+                <input type="text" id="new-comment-input" placeholder="Add a comment..." style="flex:1; border:1px solid #eee; background:#f8f8f8; padding:10px 15px; border-radius:24px; outline:none; font-size:14px; font-family:inherit;">
+                <button onclick="app.postComment()" id="btn-post-comment" style="background:none; border:none; color:var(--tiktok-red); font-weight:700; font-size:14px; cursor:pointer; white-space:nowrap;">Post</button>
             </div>
         </div>
+        <div id="comments-sheet-overlay" onclick="app.closeCommentsSheet()" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:1001;"></div>
         
         <!-- Admin Dashboard Modal -->
         <div id="admin-dashboard-modal" class="auth-modal hidden" style="z-index: 1003; height: 80%; border-radius: 12px 12px 0 0; top: 10%;">
