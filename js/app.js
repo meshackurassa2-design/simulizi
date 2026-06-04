@@ -112,9 +112,8 @@ class TikTokClone {
                 await this.ensureProfileExists();
                 this.updateProfileUI();
                 
-                // Restore last visited tab
-                const lastView = localStorage.getItem('lastView') || 'home-view';
-                this.switchTab(lastView);
+                this.switchTab('home-view');
+                document.getElementById('splash-screen').style.display = 'none';
             } else {
                 // Force login to see content
                 this.showAuthModal();
@@ -912,9 +911,6 @@ class TikTokClone {
         const target = document.getElementById(viewId);
         target.classList.remove('hidden');
         target.classList.add('active');
-
-        // Save state
-        localStorage.setItem('lastView', viewId);
 
         // Reset home header if switching tabs
         if (viewId === 'home-view' && this.state.feedType !== 'trending') {
