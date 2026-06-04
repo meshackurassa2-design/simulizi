@@ -70,8 +70,10 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 -- 8. Make sure the video details view is fully updated
-ALTER TABLE videos ADD COLUMN IF NOT EXISTS view_count INT DEFAULT 0;
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0;
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS watch_seconds INTEGER DEFAULT 0;
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS edits JSONB DEFAULT '{}'::jsonb;
+
 
 DROP VIEW IF EXISTS video_details;
 
@@ -85,6 +87,7 @@ SELECT
     v.is_premium,
     v.price,
     v.view_count,
+    v.watch_seconds,
     v.edits,
     p.username AS author_username,
     p.avatar_url AS author_avatar_url,
@@ -103,6 +106,7 @@ CREATE TABLE IF NOT EXISTS follows (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     follower_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     following_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    source_video_id UUID REFERENCES videos(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(follower_id, following_id)
 );
@@ -123,6 +127,14 @@ CREATE OR REPLACE FUNCTION increment_view_count(vid UUID)
 RETURNS void AS $$
 BEGIN
   UPDATE videos SET view_count = COALESCE(view_count, 0) + 1 WHERE id = vid;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 11. RPC for adding watch time securely
+CREATE OR REPLACE FUNCTION add_watch_time(vid UUID, seconds INT)
+RETURNS void AS $$
+BEGIN
+  UPDATE videos SET watch_seconds = COALESCE(watch_seconds, 0) + seconds WHERE id = vid;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

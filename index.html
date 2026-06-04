@@ -35,6 +35,9 @@
                     <span class="tab" id="tab-following" onclick="app.switchFeed('following')">Following</span>
                     <span class="tab active" id="tab-foryou" onclick="app.switchFeed('foryou')">For You</span>
                 </div>
+                <div id="trending-header" style="display:none; position:absolute; left:50%; transform:translateX(-50%); font-weight:700; font-size:18px;">
+                    Trending Simulizi
+                </div>
                 <div class="nav-icon" id="home-search-icon" onclick="app.openSearch()" style="margin-left:auto;">
                     <!-- Search Icon -->
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -47,34 +50,7 @@
             </div>
         </section>
 
-        <!-- 2. FRIENDS VIEW (Replaces Discover in 2024) -->
-        <section id="friends-view" class="view hidden">
-            <!-- Top Nav for Friends -->
-            <div class="top-nav">
-                <div class="nav-icon">
-                    <!-- Add Friends Icon -->
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
-                </div>
-                <div class="nav-tabs">
-                    <span class="tab active">Friends</span>
-                </div>
-                <div class="nav-icon" onclick="app.openSearch()">
-                    <!-- Search Icon -->
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                </div>
-            </div>
-            
-            <div id="friends-feed-container" class="feed-container">
-                <div class="friends-empty-state" style="display:flex; justify-content:center; align-items:center; height:100%; color:#888; text-align:center; padding:20px;">
-                    <div>
-                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                        <h3 style="color:#fff; margin:16px 0 8px;">Explore friends' posts</h3>
-                        <p style="font-size:14px; margin-bottom:20px;">Your friends' simulizi will appear here.</p>
-                        <button style="background:var(--tiktok-red); color:#fff; border:none; padding:12px 32px; border-radius:4px; font-weight:600;">Find friends</button>
-                    </div>
-                </div>
-            </div>
-        </section>
+        <!-- Removed Friends View in favor of Trending -->
 
         <!-- 3. UPLOAD VIEW (Simulizi Upload) -->
         <section id="upload-view" class="view hidden" style="z-index:100; background:#000;">
@@ -285,10 +261,10 @@
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l-9 8v10.5a1 1 0 001 1h5v-7h6v7h5a1 1 0 001-1V10.5l-9-8z"></path></svg>
                 <span class="label">Home</span>
             </button>
-            <button class="nav-item" onclick="app.handleNavClick('friends-view')">
-                <!-- 2024 Friends Tab Icon (Two people) -->
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                <span class="label">Friends</span>
+            <button class="nav-item" onclick="app.openTrending()">
+                <!-- Trending Tab Icon (Fire) -->
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c0 0-4 4-4 9a4 4 0 0 0 8 0c0-5-4-9-4-9z"></path><path d="M12 11v6"></path></svg>
+                <span class="label">Trending</span>
             </button>
             <button class="nav-item upload-btn-container" id="nav-upload-btn" style="display:none;" onclick="app.handleNavClick('upload-view')">
                 <div class="tiktok-plus">

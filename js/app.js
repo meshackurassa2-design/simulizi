@@ -889,6 +889,14 @@ class TikTokClone {
         }
     }
 
+    openTrending() {
+        this.state.feedType = 'trending';
+        this.switchTab('home-view');
+        document.getElementById('home-nav-tabs').style.display = 'none';
+        document.getElementById('trending-header').style.display = 'block';
+        this.renderFeed();
+    }
+
     switchTab(viewId) {
         document.querySelectorAll('.view').forEach(view => {
             view.classList.remove('active');
@@ -901,6 +909,12 @@ class TikTokClone {
 
         // Save state
         localStorage.setItem('lastView', viewId);
+
+        // Reset home header if switching tabs
+        if (viewId === 'home-view' && this.state.feedType !== 'trending') {
+            document.getElementById('home-nav-tabs').style.display = 'flex';
+            document.getElementById('trending-header').style.display = 'none';
+        }
 
         document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
         
@@ -1050,8 +1064,10 @@ class TikTokClone {
 
         let query = supabaseClient.from('video_details').select('*');
         
-        if (this.state.feedType === 'foryou') {
+        if (this.state.feedType === 'trending') {
             query = query.order('trending_score', { ascending: false }).order('created_at', { ascending: false });
+        } else if (this.state.feedType === 'foryou') {
+            query = query.order('created_at', { ascending: false });
         } else if (this.state.feedType === 'following') {
             query = query.order('created_at', { ascending: false });
             if (!this.state.isAuthenticated) {
@@ -1117,7 +1133,8 @@ class TikTokClone {
                         
                         const { error: followError } = await supabaseClient.from('follows').insert({
                             follower_id: this.state.user.id,
-                            following_id: media.author_id
+                            following_id: media.author_id,
+                            source_video_id: media.id
                         });
                         
                         if (followError) {
@@ -1567,6 +1584,9 @@ class TikTokClone {
                 const playPauseInd = entry.target.querySelector('.play-pause-indicator');
 
                 if (entry.isIntersecting) {
+                    // Record start time for watch hours
+                    entry.target.dataset.watchStart = Date.now();
+                    
                     if (!paywall || paywall.classList.contains('hidden')) {
                         if (this.audioUnlocked) video.muted = false;
                         // Attempt to play automatically (might be blocked until user interacts)
@@ -1590,6 +1610,17 @@ class TikTokClone {
                         if (playPauseInd) playPauseInd.classList.remove('show');
                     }
                 } else {
+                    // Calculate and save watch time
+                    const watchStart = entry.target.dataset.watchStart;
+                    const vidId = entry.target.dataset.videoId;
+                    if (watchStart && vidId) {
+                        const secondsWatched = Math.floor((Date.now() - parseInt(watchStart)) / 1000);
+                        if (secondsWatched > 0) {
+                            supabaseClient.rpc('add_watch_time', { vid: vidId, seconds: secondsWatched }).catch(e => console.error(e));
+                        }
+                        delete entry.target.dataset.watchStart;
+                    }
+
                     video.pause();
                     video.currentTime = 0;
                     if (recordSpin) recordSpin.classList.add('paused');
@@ -2196,6 +2227,19 @@ class TikTokClone {
             return;
         }
         
+        const { data: followData } = await supabaseClient
+            .from('follows')
+            .select('source_video_id')
+            .eq('following_id', this.state.user.id)
+            .not('source_video_id', 'is', null);
+
+        const followerCounts = {};
+        if (followData) {
+            followData.forEach(f => {
+                followerCounts[f.source_video_id] = (followerCounts[f.source_video_id] || 0) + 1;
+            });
+        }
+        
         let totalViews = 0;
         let totalLikes = 0;
         let totalComments = 0;
@@ -2206,22 +2250,26 @@ class TikTokClone {
             const views = v.view_count || 0;
             const likes = v.like_count || 0;
             const comments = v.comment_count || 0;
+            const watchHours = ((v.watch_seconds || 0) / 3600).toFixed(2);
+            const followersGained = followerCounts[v.id] || 0;
             
             totalViews += views;
             totalLikes += likes;
             totalComments += comments;
             
             listContainer.innerHTML += `
-                <div class="analytics-video-row">
-                    <div class="analytics-video-thumb">
-                        <video src="${v.video_url}" style="width:100%; height:100%; object-fit:cover;"></video>
+                <div class="analytics-video-row" style="background:#111; padding:10px; border-radius:8px; display:flex; gap:12px;">
+                    <div class="analytics-video-thumb" style="width:60px; height:80px; flex-shrink:0;">
+                        <video src="${v.video_url}" style="width:100%; height:100%; object-fit:cover; border-radius:4px; background:#222;"></video>
                     </div>
-                    <div class="analytics-video-info">
-                        <div class="analytics-video-caption">${v.caption || 'Untitled Video'}</div>
-                        <div class="analytics-video-metrics">
-                            <span class="analytics-metric"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg> ${views}</span>
-                            <span class="analytics-metric"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path></svg> ${likes}</span>
-                            <span class="analytics-metric"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> ${comments}</span>
+                    <div class="analytics-video-info" style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+                        <div class="analytics-video-caption" style="font-weight:600; font-size:14px; margin-bottom:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${v.caption || 'Untitled Video'}</div>
+                        <div class="analytics-video-metrics" style="display:flex; flex-wrap:wrap; gap:12px; font-size:12px; color:#aaa;">
+                            <span class="analytics-metric" style="display:flex; align-items:center; gap:4px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg> ${views}</span>
+                            <span class="analytics-metric" style="display:flex; align-items:center; gap:4px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path></svg> ${likes}</span>
+                            <span class="analytics-metric" style="display:flex; align-items:center; gap:4px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> ${comments}</span>
+                            <span class="analytics-metric" style="display:flex; align-items:center; gap:4px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> ${watchHours} hrs</span>
+                            <span class="analytics-metric" style="display:flex; align-items:center; gap:4px; color:var(--tiktok-red);"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14" stroke="currentColor" stroke-width="2"></line><line x1="23" y1="11" x2="17" y2="11" stroke="currentColor" stroke-width="2"></line></svg> +${followersGained} follows</span>
                         </div>
                     </div>
                 </div>
