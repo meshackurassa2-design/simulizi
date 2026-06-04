@@ -923,9 +923,20 @@ class TikTokClone {
 
         document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
         
-        const navMapping = { 'home-view': 0, 'friends-view': 1, 'upload-view': 2, 'inbox-view': 3, 'profile-view': 4 };
-        if(navMapping[viewId] !== undefined) {
-            document.querySelectorAll('.nav-item')[navMapping[viewId]].classList.add('active');
+        let activeIndex = -1;
+        if (viewId === 'home-view') {
+            activeIndex = this.state.feedType === 'trending' ? 1 : 0;
+        } else if (viewId === 'upload-view') {
+            activeIndex = 2;
+        } else if (viewId === 'inbox-view') {
+            activeIndex = 3;
+        } else if (viewId === 'profile-view') {
+            activeIndex = 4;
+        }
+
+        const navItems = document.querySelectorAll('.nav-item');
+        if (activeIndex !== -1 && navItems[activeIndex]) {
+            navItems[activeIndex].classList.add('active');
         }
 
         // Camera handling
