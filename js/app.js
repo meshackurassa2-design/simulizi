@@ -263,8 +263,8 @@ class TikTokClone {
         this.goToWizardStep(currentStep + 1);
     }
 
-    prevWizardStep(currentStep) {
-        this.goToWizardStep(currentStep - 1);
+    prevWizardStep(targetStep) {
+        this.goToWizardStep(targetStep);
     }
 
     async submitWizard() {
