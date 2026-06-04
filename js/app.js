@@ -939,7 +939,7 @@ class TikTokClone {
                     baseBookmarks++;
                     bookmarksCount.textContent = baseBookmarks;
                 } else {
-                    bookmarkIcon.setAttribute('fill', 'none');
+                    bookmarkIcon.setAttribute('fill', 'rgba(0,0,0,0.3)');
                     bookmarkIcon.setAttribute('stroke', 'white');
                     baseBookmarks--;
                     bookmarksCount.textContent = baseBookmarks;
