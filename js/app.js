@@ -1146,7 +1146,14 @@ class TikTokClone {
                         e.stopPropagation();
                         if (!this.state.isAuthenticated) return this.showAuthModal();
                         
-                        followBadge.style.display = 'none'; // Optimistic
+                        // Optimistic hide everywhere for this author
+                        userFollowingIds.add(media.author_id);
+                        document.querySelectorAll('.media-item').forEach(item => {
+                            if (item.dataset.authorId === media.author_id) {
+                                const b = item.querySelector('.follow-badge');
+                                if (b) b.style.display = 'none';
+                            }
+                        });
                         
                         const { error: followError } = await supabaseClient.from('follows').insert({
                             follower_id: this.state.user.id,
@@ -1155,8 +1162,16 @@ class TikTokClone {
                         });
                         
                         if (followError) {
-                            followBadge.style.display = 'flex'; // Revert on fail
+                            // Revert on fail
+                            userFollowingIds.delete(media.author_id);
+                            document.querySelectorAll('.media-item').forEach(item => {
+                                if (item.dataset.authorId === media.author_id) {
+                                    const b = item.querySelector('.follow-badge');
+                                    if (b) b.style.display = 'flex';
+                                }
+                            });
                             console.error('Follow failed:', followError);
+                            alert("Failed to follow. Make sure you've run the latest SQL migration. Error: " + followError.message);
                         }
                     });
                 }
@@ -1216,6 +1231,7 @@ class TikTokClone {
 
             // Store ID on the DOM element for likes/unlocks
             mediaItem.dataset.videoId = media.id;
+            mediaItem.dataset.authorId = media.author_id;
             
             // Interactivity setup
             this.setupVideoInteractions(mediaItem, video);

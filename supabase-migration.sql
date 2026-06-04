@@ -106,10 +106,11 @@ CREATE TABLE IF NOT EXISTS follows (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     follower_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     following_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    source_video_id UUID REFERENCES videos(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(follower_id, following_id)
 );
+
+ALTER TABLE follows ADD COLUMN IF NOT EXISTS source_video_id UUID REFERENCES videos(id) ON DELETE SET NULL;
 
 ALTER TABLE follows ENABLE ROW LEVEL SECURITY;
 
