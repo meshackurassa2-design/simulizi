@@ -1003,6 +1003,9 @@ class TikTokClone {
                 if (liked) {
                     heartIcon.setAttribute('fill', 'var(--tiktok-red)');
                     heartIcon.setAttribute('stroke', 'var(--tiktok-red)');
+                    heartIcon.classList.remove('heart-pop');
+                    void heartIcon.offsetWidth; // force reflow to restart animation
+                    heartIcon.classList.add('heart-pop');
                     baseLikes++;
                     likesCount.textContent = baseLikes;
                     const { error } = await supabaseClient.from('likes').upsert(
