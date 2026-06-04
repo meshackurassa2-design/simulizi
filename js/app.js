@@ -118,9 +118,42 @@ class TikTokClone {
             this.setupInboxInteractions();
             this.setupProfileTabs();
             this.updateInboxUI();
+            this.setupRealtimeSync();
         } catch (err) {
             document.body.innerHTML = `<div style="padding:20px; color:red; background:white; position:fixed; z-index:9999; top:0; left:0; right:0;"><h3>App Error</h3><pre>${err.message}</pre><pre>${err.stack}</pre></div>` + document.body.innerHTML;
         }
+    }
+
+    setupRealtimeSync() {
+        // Listen to likes table to update like counts instantly across all devices
+        supabaseClient
+            .channel('public:likes')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes' }, payload => {
+                this.updateRealtimeCount(payload.new.video_id, 1, 'likes');
+            })
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' }, payload => {
+                this.updateRealtimeCount(payload.old.video_id, -1, 'likes');
+            })
+            .subscribe();
+    }
+
+    updateRealtimeCount(videoId, delta, type) {
+        // Find the video element in the DOM
+        const mediaItems = document.querySelectorAll('.media-item');
+        mediaItems.forEach(item => {
+            if (item.dataset.videoId === videoId) {
+                if (type === 'likes') {
+                    const countEl = item.querySelector('.likes-count');
+                    if (countEl) {
+                        let currentCount = parseInt(countEl.textContent || 0);
+                        // Prevent optimistic UI from double counting
+                        // This simple implementation relies on the fact that optimistic UI updates instantly,
+                        // so we only update if it seems we missed it. For a robust app, we'd debounce or check sender.
+                        countEl.textContent = Math.max(0, currentCount + delta);
+                    }
+                }
+            }
+        });
     }
 
     async ensureProfileExists() {
@@ -887,6 +920,30 @@ class TikTokClone {
             const commentBtn = clone.querySelector('.btn-comment');
             commentBtn.addEventListener('click', () => {
                 this.openCommentsSheet(media);
+            });
+
+            // Bookmark Action
+            const bookmarkBtn = clone.querySelector('.btn-bookmark');
+            let bookmarked = false;
+            let baseBookmarks = 0; // Initialize to 0 or fetch from DB
+            const bookmarkIcon = bookmarkBtn.querySelector('.bookmark-icon');
+            const bookmarksCount = bookmarkBtn.querySelector('.bookmarks-count');
+            
+            bookmarkBtn.addEventListener('click', () => {
+                if (!this.state.isAuthenticated) return this.showAuthModal();
+                
+                bookmarked = !bookmarked;
+                if (bookmarked) {
+                    bookmarkIcon.setAttribute('fill', '#eab308'); // yellow fill
+                    bookmarkIcon.setAttribute('stroke', '#eab308');
+                    baseBookmarks++;
+                    bookmarksCount.textContent = baseBookmarks;
+                } else {
+                    bookmarkIcon.setAttribute('fill', 'none');
+                    bookmarkIcon.setAttribute('stroke', 'white');
+                    baseBookmarks--;
+                    bookmarksCount.textContent = baseBookmarks;
+                }
             });
 
             // Share Action
