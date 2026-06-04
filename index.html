@@ -401,7 +401,7 @@
                 <div style="width:36px; height:4px; border-radius:2px; background:#ddd;"></div>
             </div>
             <!-- Header -->
-            <div style="display:flex; align-items:center; justify-content:space-between; padding:0 16px 12px; border-bottom:1px solid #f1f1f2;">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:0 16px 12px;">
                 <div style="width:24px;"></div>
                 <div style="font-weight:700; font-size:16px;" id="comments-title">Comments</div>
                 <svg onclick="app.closeCommentsSheet()" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round" style="cursor:pointer;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -411,7 +411,7 @@
                 <div style="display:flex; justify-content:center; align-items:center; height:100%; color:#999; font-size:14px;">No comments yet. Be the first!</div>
             </div>
             <!-- Input Bar -->
-            <div style="padding:10px 14px; border-top:1px solid #f1f1f2; background:#fff; display:flex; align-items:center; gap:10px;">
+            <div style="padding:10px 14px; background:#fff; display:flex; align-items:center; gap:10px;">
                 <div id="comment-input-avatar" style="width:36px; height:36px; min-width:36px; border-radius:50%; background:#eee; overflow:hidden; display:flex; align-items:center; justify-content:center;">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#bbb" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                 </div>
@@ -423,7 +423,7 @@
         
         <!-- Admin Dashboard Modal -->
         <div id="admin-dashboard-modal" class="auth-modal hidden" style="z-index: 1003; height: 80%; border-radius: 12px 12px 0 0; top: 10%;">
-            <div class="auth-header" style="border-bottom: 1px solid #eee;">
+            <div class="auth-header">
                 <div style="width:24px;"></div>
                 <div style="font-weight:600; font-size:16px; color:var(--tiktok-red);">Admin Dashboard</div>
                 <svg class="auth-close" onclick="app.closeAdminDashboard()" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
