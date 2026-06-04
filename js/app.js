@@ -1005,7 +1005,10 @@ class TikTokClone {
                     heartIcon.setAttribute('stroke', 'var(--tiktok-red)');
                     baseLikes++;
                     likesCount.textContent = baseLikes;
-                    const { error } = await supabaseClient.from('likes').insert([{ video_id: media.id, user_id: this.state.user.id }]);
+                    const { error } = await supabaseClient.from('likes').upsert(
+                        [{ video_id: media.id, user_id: this.state.user.id }],
+                        { onConflict: 'video_id,user_id', ignoreDuplicates: true }
+                    );
                     if (error) {
                         // Revert on failure
                         liked = false;
