@@ -1495,7 +1495,15 @@ class TikTokClone {
                         // Attempt to play automatically (might be blocked until user interacts)
                         const playPromise = video.play();
                         if (playPromise !== undefined) {
-                            playPromise.catch(() => {
+                            playPromise.then(() => {
+                                // Increment view count safely once it starts playing
+                                const vidId = entry.target.dataset.videoId;
+                                if (vidId && (!this.state.viewedVideos || !this.state.viewedVideos.has(vidId))) {
+                                    if (!this.state.viewedVideos) this.state.viewedVideos = new Set();
+                                    this.state.viewedVideos.add(vidId);
+                                    supabaseClient.rpc('increment_view_count', { vid: vidId }).catch(e => console.error(e));
+                                }
+                            }).catch(() => {
                                 // Autoplay with sound blocked. Will play when user interacts (unlockAudio)
                                 if (recordSpin) recordSpin.classList.add('paused');
                                 if (playPauseInd) playPauseInd.classList.remove('show');
@@ -1807,6 +1815,91 @@ class TikTokClone {
                 tab.classList.add('active');
             });
         });
+    }
+
+    // --- ANALYTICS DASHBOARD ---
+    async openAnalytics() {
+        if (!this.state.isAuthenticated) return this.showAuthModal();
+        const backdrop = document.getElementById('analytics-modal-backdrop');
+        const modal = document.getElementById('analytics-modal');
+        backdrop.classList.remove('hidden');
+        modal.classList.remove('hidden');
+        
+        await this.loadAnalytics();
+        
+        // Setup realtime subscription for analytics
+        this.analyticsSubscription = supabaseClient
+            .channel('analytics-channel')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'videos', filter: `user_id=eq.${this.state.user.id}` }, () => this.loadAnalytics())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, () => this.loadAnalytics())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => this.loadAnalytics())
+            .subscribe();
+    }
+
+    closeAnalytics() {
+        document.getElementById('analytics-modal-backdrop').classList.add('hidden');
+        document.getElementById('analytics-modal').classList.add('hidden');
+        if (this.analyticsSubscription) {
+            supabaseClient.removeChannel(this.analyticsSubscription);
+            this.analyticsSubscription = null;
+        }
+    }
+
+    async loadAnalytics() {
+        if (!this.state.isAuthenticated) return;
+        
+        const listContainer = document.getElementById('analytics-videos-list');
+        listContainer.innerHTML = '<div style="color:#888; text-align:center; padding:20px;">Loading live analytics...</div>';
+        
+        const { data: videos, error } = await supabaseClient
+            .from('video_details')
+            .select('*')
+            .eq('author_id', this.state.user.id)
+            .order('created_at', { ascending: false });
+            
+        if (error || !videos || videos.length === 0) {
+            document.getElementById('analytics-total-views').textContent = 0;
+            document.getElementById('analytics-total-likes').textContent = 0;
+            document.getElementById('analytics-total-comments').textContent = 0;
+            listContainer.innerHTML = '<div style="color:#888; text-align:center; padding:20px;">No videos yet.</div>';
+            return;
+        }
+        
+        let totalViews = 0;
+        let totalLikes = 0;
+        let totalComments = 0;
+        
+        listContainer.innerHTML = '';
+        
+        videos.forEach(v => {
+            const views = v.view_count || 0;
+            const likes = v.like_count || 0;
+            const comments = v.comment_count || 0;
+            
+            totalViews += views;
+            totalLikes += likes;
+            totalComments += comments;
+            
+            listContainer.innerHTML += `
+                <div class="analytics-video-row">
+                    <div class="analytics-video-thumb">
+                        <video src="${v.video_url}" style="width:100%; height:100%; object-fit:cover;"></video>
+                    </div>
+                    <div class="analytics-video-info">
+                        <div class="analytics-video-caption">${v.caption || 'Untitled Video'}</div>
+                        <div class="analytics-video-metrics">
+                            <span class="analytics-metric"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg> ${views}</span>
+                            <span class="analytics-metric"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path></svg> ${likes}</span>
+                            <span class="analytics-metric"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> ${comments}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        document.getElementById('analytics-total-views').textContent = totalViews;
+        document.getElementById('analytics-total-likes').textContent = totalLikes;
+        document.getElementById('analytics-total-comments').textContent = totalComments;
     }
 }
 

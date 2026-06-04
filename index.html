@@ -202,8 +202,9 @@
                     </div>
                     
                     <!-- 2024 Exact Action Buttons Row -->
-                    <div class="profile-actions-row">
-                        <button class="action-btn-gray" style="width:100%; max-width:200px;" onclick="app.openEditProfileModal()">Edit profile</button>
+                    <div class="profile-actions-row" style="display:flex; gap:8px;">
+                        <button class="action-btn-gray" style="flex:1;" onclick="app.openEditProfileModal()">Edit profile</button>
+                        <button class="action-btn-gray" id="btn-analytics" style="flex:1;" onclick="app.openAnalytics()">Analytics</button>
                     </div>
                 </div>
 
@@ -433,6 +434,39 @@
             </div>
         </div>
         
+    </div>
+    
+    <!-- Analytics Modal -->
+    <div id="analytics-modal-backdrop" class="modal-backdrop hidden" onclick="app.closeAnalytics()">
+        <div id="analytics-modal" class="auth-modal hidden" style="z-index: 1003; height: 85%; border-radius: 12px 12px 0 0; background: #000; color: #fff; border-top: 1px solid #333;" onclick="event.stopPropagation()">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:15px; border-bottom:1px solid #333;">
+                <h3 style="font-size:16px; font-weight:600; margin:0;">Creator Analytics</h3>
+                <svg onclick="app.closeAnalytics()" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" style="cursor:pointer;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </div>
+            
+            <div style="padding:15px; overflow-y:auto; height:calc(100% - 50px);">
+                <!-- Aggregated Stats -->
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:20px;">
+                    <div class="analytics-stat-card">
+                        <div class="stat-lbl">Total Views</div>
+                        <div class="stat-val" id="analytics-total-views">0</div>
+                    </div>
+                    <div class="analytics-stat-card">
+                        <div class="stat-lbl">Total Likes</div>
+                        <div class="stat-val" id="analytics-total-likes">0</div>
+                    </div>
+                    <div class="analytics-stat-card">
+                        <div class="stat-lbl">Total Comments</div>
+                        <div class="stat-val" id="analytics-total-comments">0</div>
+                    </div>
+                </div>
+                
+                <h4 style="font-size:14px; color:#aaa; margin-bottom:10px;">Your Videos (Live)</h4>
+                <div id="analytics-videos-list" style="display:flex; flex-direction:column; gap:10px;">
+                    <!-- Analytics video rows populated by JS -->
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- SEARCH OVERLAY (fixed, outside app-container so switchTab never hides it) -->

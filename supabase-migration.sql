@@ -70,6 +70,8 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 -- 8. Make sure the video details view is fully updated
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS view_count INT DEFAULT 0;
+
 DROP VIEW IF EXISTS video_details;
 
 CREATE VIEW video_details AS
@@ -81,6 +83,7 @@ SELECT
     v.created_at,
     v.is_premium,
     v.price,
+    v.view_count,
     p.username AS author_username,
     p.avatar_url AS author_avatar_url,
     (SELECT count(*) FROM likes l WHERE l.video_id = v.id) AS like_count,
@@ -108,4 +111,12 @@ CREATE POLICY "follows_insert" ON follows FOR INSERT WITH CHECK (auth.uid() = fo
 DROP POLICY IF EXISTS "follows_delete" ON follows;
 CREATE POLICY "follows_delete" ON follows FOR DELETE USING (auth.uid() = follower_id);
 
--- Done! All tables and policies are now configured correctly.
+-- 10. RPC for incrementing view count securely
+CREATE OR REPLACE FUNCTION increment_view_count(vid UUID)
+RETURNS void AS $$
+BEGIN
+  UPDATE videos SET view_count = COALESCE(view_count, 0) + 1 WHERE id = vid;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Done! All tables, views, policies, and functions are now configured correctly.
