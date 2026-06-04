@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+
+# Android
+android-app/.gradle
+android-app/build
+android-app/app/build
+android-app/local.properties
+
+# Tools downloaded by agent
+jdk/
+mingit/
+mingit.zip
+jdk.zip
+Simulizi-v1.0.apk

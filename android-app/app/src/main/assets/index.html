@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Simulizi (TikTok 2024 Clone)</title>
+    <link rel="icon" type="image/png" href="assets/icon.png">
+    <link rel="apple-touch-icon" href="assets/icon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css?v=2">
+    <script src="js/error-logger.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <!-- Splash Screen -->
+    <div id="splash-screen" class="splash-screen">
+        <div class="splash-word-anim">
+            <span class="splash-letter" style="animation-delay:0.0s">S</span><span class="splash-letter" style="animation-delay:0.08s">i</span><span class="splash-letter" style="animation-delay:0.16s">m</span><span class="splash-letter" style="animation-delay:0.24s">u</span><span class="splash-letter" style="animation-delay:0.32s">l</span><span class="splash-letter" style="animation-delay:0.40s">i</span><span class="splash-letter" style="animation-delay:0.48s">z</span><span class="splash-letter" style="animation-delay:0.56s">i</span>
+        </div>
+        <div class="splash-tagline">Hadithi. Sanaa. Maisha.</div>
+    </div>
+
+    <div id="app-container">
+
+        <!-- 1. HOME VIEW (For You Page) -->
+        <section id="home-view" class="view active">
+            <!-- Top Nav -->
+            <div class="top-nav">
+                <div class="nav-tabs" style="position:absolute; left:50%; transform:translateX(-50%);">
+                    <span class="tab" id="tab-following" onclick="app.switchFeed('following')">Following</span>
+                    <span class="tab active" id="tab-foryou" onclick="app.switchFeed('foryou')">For You</span>
+                </div>
+                <div class="nav-icon" onclick="app.openSearch()" style="margin-left:auto;">
+                    <!-- Search Icon -->
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                </div>
+            </div>
+
+            <!-- Feed -->
+            <div id="feed-container" class="feed-container">
+                <!-- Media Items injected by JS -->
+            </div>
+        </section>
+
+        <!-- 2. FRIENDS VIEW (Replaces Discover in 2024) -->
+        <section id="friends-view" class="view hidden">
+            <!-- Top Nav for Friends -->
+            <div class="top-nav">
+                <div class="nav-icon">
+                    <!-- Add Friends Icon -->
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
+                </div>
+                <div class="nav-tabs">
+                    <span class="tab active">Friends</span>
+                </div>
+                <div class="nav-icon" onclick="app.openSearch()">
+                    <!-- Search Icon -->
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                </div>
+            </div>
+            
+            <div id="friends-feed-container" class="feed-container">
+                <div class="friends-empty-state" style="display:flex; justify-content:center; align-items:center; height:100%; color:#888; text-align:center; padding:20px;">
+                    <div>
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                        <h3 style="color:#fff; margin:16px 0 8px;">Explore friends' posts</h3>
+                        <p style="font-size:14px; margin-bottom:20px;">Your friends' simulizi will appear here.</p>
+                        <button style="background:var(--tiktok-red); color:#fff; border:none; padding:12px 32px; border-radius:4px; font-weight:600;">Find friends</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. UPLOAD VIEW (Simulizi Upload) -->
+        <section id="upload-view" class="view hidden" style="z-index:100;">
+            <!-- MODE A: CAMERA RECORD -->
+            <div id="upload-camera-mode" class="camera-ui">
+                <video id="webcam-video" autoplay playsinline muted class="webcam-feed"></video>
+                
+                <div class="camera-header">
+                    <svg class="close-cam" onclick="app.switchTab('home-view')" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    <div style="color:white; font-weight:600; font-size:16px;">Camera</div>
+                    <div style="width:24px;"></div>
+                </div>
+                
+                <div class="camera-bottom">
+                    <div id="record-btn-container" class="record-btn-container">
+                        <div class="record-btn" id="camera-record-btn" onclick="app.startRecording()"></div>
+                    </div>
+                    <!-- Gallery picker shortcut -->
+                    <div onclick="app.triggerGalleryPicker()" style="display:flex; align-items:center; gap:8px; color:white; font-size:14px; font-weight:600; background:rgba(255,255,255,0.2); padding:10px 20px; border-radius:24px; cursor:pointer;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                        Upload from Gallery
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODE B: GALLERY / POST DETAILS SCREEN -->
+            <div id="upload-gallery-mode" style="display:none; height:100%; background:#000; flex-direction:column;">
+                <!-- Hidden file input -->
+                <input type="file" id="gallery-file-input" accept="video/*" style="display:none;" onchange="app.onGalleryFileSelected(event)">
+                
+                <!-- Post details form (shown after a video is picked) -->
+                <div id="upload-post-form" style="display:none; height:100%; background:#fff; flex-direction:column;">
+                    <div style="display:flex; align-items:center; padding:16px; border-bottom:1px solid #eee;">
+                        <svg onclick="app.cancelUpload()" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" style="cursor:pointer; margin-right:14px;"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                        <span style="font-size:17px; font-weight:700; color:#000; flex:1;">New Post</span>
+                        <button onclick="app.uploadVideo()" id="btn-post-now" style="background:var(--tiktok-red); color:white; border:none; border-radius:6px; padding:8px 18px; font-weight:700; font-size:14px; cursor:pointer;">Post</button>
+                    </div>
+                    <div style="flex:1; overflow-y:auto; padding:16px;">
+                        <!-- Preview + Caption side by side -->
+                        <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:20px;">
+                            <video id="gallery-preview-video" style="width:80px; height:120px; object-fit:cover; border-radius:8px; background:#000;" muted playsinline loop></video>
+                            <textarea id="upload-caption-input" placeholder="Write a caption... #simulizi" style="flex:1; height:120px; border:none; outline:none; font-size:15px; resize:none; font-family:inherit; color:#000;"></textarea>
+                        </div>
+                        
+                        <!-- Upload progress -->
+                        <div id="upload-progress-bar-wrap" style="display:none; margin-bottom:16px;">
+                            <div style="background:#f1f1f1; border-radius:4px; height:4px; overflow:hidden;">
+                                <div id="upload-progress-bar" style="background:var(--tiktok-red); height:100%; width:0%; transition:width 0.3s;"></div>
+                            </div>
+                            <p id="upload-progress-text" style="font-size:12px; color:#888; margin-top:4px;">Uploading...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- 4. INBOX VIEW (2024 Strict Layout) -->
+        <section id="inbox-view" class="view hidden" style="background:#fff; color:#000;">
+            <div class="inbox-header-2024">
+                <div style="width:24px;"></div>
+                <h2 style="font-size:17px; font-weight:600;">Inbox</h2>
+                <!-- New message icon -->
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            </div>
+            <div class="inbox-scroll" style="overflow-y:auto; height:calc(100% - 100px); padding-bottom:50px;">
+                <!-- System Row 1: New followers -->
+                <div class="inbox-row" id="inbox-new-followers">
+                    <div class="inbox-icon-wrap" style="background:#5ce1e6;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14" stroke="white" stroke-width="2"></line><line x1="23" y1="11" x2="17" y2="11" stroke="white" stroke-width="2"></line></svg>
+                    </div>
+                    <div class="inbox-row-text">
+                        <strong>New followers</strong>
+                        <p id="inbox-new-followers-text">No new followers yet</p>
+                    </div>
+                    <div class="red-dot"></div>
+                </div>
+                
+                <!-- System Row 2: Activities -->
+                <div class="inbox-row" id="inbox-activities">
+                    <div class="inbox-icon-wrap" style="background:#ff4d4d;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    </div>
+                    <div class="inbox-row-text">
+                        <strong>Activities</strong>
+                        <p id="inbox-activities-text">No recent activity</p>
+                    </div>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#bbb" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. PROFILE VIEW (2024 Strict Layout) -->
+        <section id="profile-view" class="view hidden" style="background:#fff; color:#000;">
+            <div class="profile-header-2024">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.5"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
+                <div class="profile-name-dropdown">
+                    user_12345 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </div>
+            </div>
+            
+            <div class="profile-scroll-area">
+                <div class="profile-info-2024">
+                    <div class="profile-pic-large"></div>
+                    <div class="profile-handle-text">@user_12345</div>
+                    
+                    <div class="profile-stats-row">
+                        <div class="stat-col" id="stat-following"><span class="val">0</span> <span class="lbl">Following</span></div>
+                        <div class="stat-col" id="stat-followers"><span class="val">0</span> <span class="lbl">Followers</span></div>
+                        <div class="stat-col" id="stat-likes"><span class="val">0</span> <span class="lbl">Likes</span></div>
+                    </div>
+                    
+                    <!-- 2024 Exact Action Buttons Row -->
+                    <div class="profile-actions-row">
+                        <button class="action-btn-gray" style="width:60%;" onclick="app.openEditProfileModal()">Edit profile</button>
+                    </div>
+                    
+                    <button id="btn-admin-dashboard" class="action-btn-gray" onclick="app.openAdminDashboard()" style="display:none; width:100%; margin-top:10px; background:#fff3f3; color:var(--tiktok-red); border:1px solid #ffcccc;">
+                        Admin Dashboard
+                    </button>
+                </div>
+
+                <div class="profile-tabs-2024">
+                    <div class="ptab active">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                    </div>
+                    <div class="ptab">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                    </div>
+                    <div class="ptab">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+                    </div>
+                    <div class="ptab">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                    </div>
+                </div>
+                <div class="profile-grid">
+                    <div class="grid-item"></div>
+                    <div class="grid-item"></div>
+                    <div class="grid-item"></div>
+                    <div class="grid-item"></div>
+                </div>
+            </div>
+        </section>
+        
+
+        <!-- Bottom Navigation (2024 standard: Home | Friends | + | Inbox | Profile) -->
+        <nav id="main-nav" class="bottom-nav">
+            <button class="nav-item active" onclick="app.handleNavClick('home-view')">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l-9 8v10.5a1 1 0 001 1h5v-7h6v7h5a1 1 0 001-1V10.5l-9-8z"></path></svg>
+                <span class="label">Home</span>
+            </button>
+            <button class="nav-item" onclick="app.handleNavClick('friends-view')">
+                <!-- 2024 Friends Tab Icon (Two people) -->
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                <span class="label">Friends</span>
+            </button>
+            <button class="nav-item upload-btn-container" id="nav-upload-btn" style="display:none;" onclick="app.handleNavClick('upload-view')">
+                <div class="tiktok-plus">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="black"><path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"></path></svg>
+                </div>
+            </button>
+            <button class="nav-item" id="nav-inbox-btn" style="display:none;" onclick="app.handleNavClick('inbox-view')">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                <span class="label">Inbox</span>
+            </button>
+            <button class="nav-item" onclick="app.handleNavClick('profile-view')">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                <span class="label">Profile</span>
+            </button>
+        </nav>
+        
+        <!-- Auth Modal (Bottom Sheet) -->
+        <div id="auth-overlay" class="auth-overlay hidden" onclick="app.closeAuthModal()"></div>
+        <div id="auth-modal" class="auth-modal hidden">
+            <div class="auth-header">
+                <svg class="auth-close" onclick="app.closeAuthModal()" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                <svg class="auth-help" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            </div>
+
+
+            <!-- WIZARD STEP 1: Birthday -->
+            <div class="auth-body hidden" id="auth-wizard-birthday">
+                <div class="wizard-header">
+                    <div style="width:24px;"></div>
+                    <span>Sign up</span>
+                    <div style="width:24px;"></div>
+                </div>
+                <h2 class="wizard-title">When's your birthday?</h2>
+                <p class="wizard-subtitle">Your birthday won't be shown publicly.</p>
+                <div class="email-form">
+                    <input type="date" id="wizard-birthday" class="auth-input">
+                    <button class="auth-submit-btn" id="btn-step-1" onclick="app.nextWizardStep(1)">Next</button>
+                </div>
+            </div>
+
+            <!-- WIZARD STEP 2: Email -->
+            <div class="auth-body hidden" id="auth-wizard-email">
+                <div class="wizard-header">
+                    <svg onclick="app.prevWizardStep(1)" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    <span>Sign up</span>
+                    <div style="width:24px;"></div>
+                </div>
+                <h2 class="wizard-title">Email address</h2>
+                <div class="email-form">
+                    <input type="email" id="wizard-email" placeholder="Email address" class="auth-input">
+                    <button class="auth-submit-btn" id="btn-step-2" onclick="app.nextWizardStep(2)">Next</button>
+                </div>
+            </div>
+
+            <!-- WIZARD STEP 3: Password -->
+            <div class="auth-body hidden" id="auth-wizard-password">
+                <div class="wizard-header">
+                    <svg onclick="app.prevWizardStep(2)" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    <span>Sign up</span>
+                    <div style="width:24px;"></div>
+                </div>
+                <h2 class="wizard-title">Create password</h2>
+                <div class="email-form">
+                    <div class="password-wrapper">
+                        <input type="password" id="wizard-password" placeholder="Password" class="auth-input">
+                        <span class="password-toggle" onclick="app.togglePasswordVisibility('wizard-password', this)">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        </span>
+                    </div>
+                    <button class="auth-submit-btn" id="btn-step-3" onclick="app.nextWizardStep(3)">Next</button>
+                </div>
+            </div>
+
+            <!-- WIZARD STEP 4: Username -->
+            <div class="auth-body hidden" id="auth-wizard-username">
+                <div class="wizard-header">
+                    <svg onclick="app.prevWizardStep(3)" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    <span>Sign up</span>
+                    <div style="width:24px;"></div>
+                </div>
+                <h2 class="wizard-title">Create nickname</h2>
+                <p class="wizard-subtitle">You can always change this later.</p>
+                <div class="email-form">
+                    <input type="text" id="wizard-username" placeholder="Username" class="auth-input">
+                    
+                    <div style="margin-top:8px; text-align:left;">
+                        <label style="font-size:14px; color:#555; font-weight:600; display:block; margin-bottom:8px;">Account Type</label>
+                        <select id="wizard-role" class="auth-input" style="width:100%; -webkit-appearance:none; background-color:#f8f8f8;">
+                            <option value="watcher">Watcher (Just watch videos)</option>
+                            <option value="creator">Simulizi Creator (Requires Admin Approval)</option>
+                        </select>
+                    </div>
+
+                    <button class="auth-submit-btn" id="btn-step-4" onclick="app.submitWizard()" style="margin-top:16px;">Sign up</button>
+                    <div id="auth-error" class="auth-error hidden"></div>
+                </div>
+            </div>
+
+            <!-- LOGIN VIEW -->
+            <div class="auth-body hidden" id="auth-wizard-login">
+                <div class="wizard-header">
+                    <div style="width:24px;"></div>
+                    <span>Log in</span>
+                    <div style="width:24px;"></div>
+                </div>
+                <h2 class="wizard-title">Log in to Simulizi</h2>
+                <p class="wizard-subtitle">Welcome back!</p>
+                <div class="email-form">
+                    <input type="email" id="login-email" placeholder="Email address" class="auth-input">
+                    <div class="password-wrapper">
+                        <input type="password" id="login-password" placeholder="Password" class="auth-input">
+                        <span class="password-toggle" onclick="app.togglePasswordVisibility('login-password', this)">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        </span>
+                    </div>
+                    <button class="auth-submit-btn" id="btn-login" onclick="app.submitLogin()">Log in</button>
+                    <div id="login-error" class="auth-error hidden"></div>
+                </div>
+            </div>
+            
+            <div class="auth-footer-text">
+                By continuing, you agree to our <a href="#">Terms of Service</a> and acknowledge that you have read our <a href="#">Privacy Policy</a> to learn how we collect, use, and share your data.
+            </div>
+            
+            <div class="auth-bottom-banner" id="auth-toggle-banner">
+                Already have an account? <span class="login-link" onclick="app.toggleAuthMode()">Log in</span>
+            </div>
+        </div>
+
+        <!-- Edit Profile Modal -->
+        <div id="edit-profile-modal" class="auth-modal hidden" style="z-index: 1002; height: 60%;">
+            <div class="auth-header">
+                <svg class="auth-close" onclick="app.closeEditProfileModal()" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                <div style="font-weight:600; font-size:16px;">Edit Profile</div>
+                <div style="width:24px;"></div>
+            </div>
+            <div class="auth-body" style="text-align: left;">
+                <div class="email-form">
+                    <label style="font-size:14px; color:#555; font-weight:600;">Username</label>
+                    <input type="text" id="edit-username" placeholder="Username" class="auth-input">
+                    <button class="auth-submit-btn" id="btn-save-profile" onclick="app.saveProfile()">Save Changes</button>
+                    <div id="edit-profile-error" class="auth-error hidden"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Comments Sheet Modal -->
+        <div id="comments-sheet" class="auth-modal hidden" style="z-index: 1002; height: 70%; bottom: 0; top: auto; border-radius: 12px 12px 0 0;">
+            <div class="auth-header" style="border-bottom: 1px solid #eee;">
+                <div style="width:24px;"></div>
+                <div style="font-weight:600; font-size:16px;" id="comments-title">Comments</div>
+                <svg class="auth-close" onclick="app.closeCommentsSheet()" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </div>
+            <div class="auth-body" style="padding: 10px; overflow-y: auto; height: calc(100% - 110px);" id="comments-list">
+                <!-- Mock comments -->
+                <div style="padding: 20px; text-align: center; color: #888; font-size: 14px;">No comments yet. Be the first to comment!</div>
+            </div>
+            <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 10px 15px; border-top: 1px solid #eee; background: white; display: flex; align-items: center; gap: 10px;">
+                <input type="text" id="new-comment-input" placeholder="Add comment..." style="flex: 1; border: none; background: #f1f1f2; padding: 12px 15px; border-radius: 20px; outline: none; font-size: 14px;">
+                <button onclick="app.postComment()" style="background: none; border: none; color: var(--tiktok-red); font-weight: 600; font-size: 14px;">Post</button>
+            </div>
+        </div>
+        
+        <!-- Admin Dashboard Modal -->
+        <div id="admin-dashboard-modal" class="auth-modal hidden" style="z-index: 1003; height: 80%; border-radius: 12px 12px 0 0; top: 10%;">
+            <div class="auth-header" style="border-bottom: 1px solid #eee;">
+                <div style="width:24px;"></div>
+                <div style="font-weight:600; font-size:16px; color:var(--tiktok-red);">Admin Dashboard</div>
+                <svg class="auth-close" onclick="app.closeAdminDashboard()" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </div>
+            <div class="auth-body" style="padding: 10px 20px; overflow-y: auto; height: calc(100% - 50px);">
+                <p style="font-size:14px; color:#555; margin-bottom:15px;">Manage users and verification status below.</p>
+                <div id="admin-users-list">
+                    <!-- Loaded dynamically -->
+                </div>
+            </div>
+        </div>
+        
+    </div>
+
+    <!-- SEARCH OVERLAY (fixed, outside app-container so switchTab never hides it) -->
+    <div id="search-view" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#fff; z-index:9000; flex-direction:column;">
+        <div style="display:flex; align-items:center; padding:12px 15px; border-bottom:1px solid #eee; background:#fff;">
+            <svg onclick="app.closeSearch()" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" style="margin-right:12px; flex-shrink:0; cursor:pointer;"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            <div style="flex-grow:1; position:relative;">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); pointer-events:none;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="search-input" placeholder="Search accounts and videos..." autocomplete="off" style="width:100%; padding:10px 10px 10px 36px; border:none; background:#f1f1f1; border-radius:8px; font-size:15px; outline:none;" oninput="app.performSearch(this.value)">
+            </div>
+            <span onclick="app.performSearch(document.getElementById('search-input').value)" style="margin-left:14px; color:#FE2C55; font-weight:700; cursor:pointer; white-space:nowrap;">Search</span>
+        </div>
+        <div id="search-results-container" style="padding:15px; overflow-y:auto; flex:1;">
+            <div style="color:#aaa; text-align:center; padding-top:60px; font-size:14px;">Type to search users or videos...</div>
+        </div>
+    </div>
+
+    <!-- Media Item Template -->
+    <template id="media-template">
+        <div class="media-item">
+            <video class="media-video" loop playsinline muted></video>
+            <div class="play-pause-indicator hidden">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </div>
+            <div class="double-tap-heart hidden">
+                <svg width="100" height="100" viewBox="0 0 24 24" fill="var(--tiktok-red)"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+            </div>
+            
+            <div class="media-right-stack">
+                <div class="stack-item profile-wrapper btn-profile">
+                    <div class="profile-img"></div>
+                    <div class="follow-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="white"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg></div>
+                </div>
+                <div class="stack-item like-btn-action btn-like">
+                    <svg class="heart-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                    <span class="stack-text likes-count">1.2M</span>
+                </div>
+                <div class="stack-item btn-comment">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" stroke="white" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    <span class="stack-text comments-count">45K</span>
+                </div>
+                <div class="stack-item btn-share">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" stroke="white" stroke-width="1.5"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+                    <span class="stack-text share-count">10K</span>
+                </div>
+                <div class="stack-item">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+                    <span class="stack-text">Share</span>
+                </div>
+                <div class="stack-item record-spin">
+                    <div class="record-vinyl">
+                        <div class="record-center"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="media-bottom-info">
+                <div class="author-name">@username</div>
+                <div class="caption">This is a great simulizi story! <span class="tag">#fyp</span> <span class="tag">#simulizi</span></div>
+                <div class="music-row">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                    <div class="marquee"><div class="marquee-content">Original Sound - @username • Original Sound - @username</div></div>
+                </div>
+            </div>
+            
+            <!-- Paywall Overlay -->
+            <div class="paywall-glass hidden">
+                <div class="paywall-content">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                    <h3>Premium Simulizi</h3>
+                    <p>Unlock to hear this full story.</p>
+                    <button class="pay-btn unlock-btn">Unlock for 100 TZS</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/app.js?v=2"></script>
+</body>
+</html>
