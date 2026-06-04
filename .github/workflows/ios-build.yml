@@ -36,6 +36,11 @@ jobs:
           npx cap init "Simulizi" "com.meshackurassa2.simulizi" --web-dir www
           npx cap add ios
 
+      - name: Generate Native App Icons
+        run: |
+          npm install @capacitor/assets --save-dev
+          npx @capacitor/assets generate --ios
+
       - name: Build Unsigned iOS App
         run: |
           cd ios/App
