@@ -423,7 +423,7 @@ body {
 .inbox-header-2024 {
     display: flex; justify-content: space-between; align-items: center;
     padding: calc(var(--safe-top) + 16px) 16px 16px;
-    border-bottom: 1px solid #eee; background: #fff;
+    border-bottom: 1px solid #222; background: #000;
 }
 .inbox-scroll {
     overflow-y: auto;
