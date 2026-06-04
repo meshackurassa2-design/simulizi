@@ -68,8 +68,9 @@ class TikTokClone {
         const unlockAudio = () => {
             if (this.audioUnlocked) return;
             this.audioUnlocked = true;
-            // Play the currently visible video
+            // Play and unmute the currently visible video
             document.querySelectorAll('.media-video').forEach(v => {
+                v.muted = false; // Unmute it so it has sound
                 const rect = v.getBoundingClientRect();
                 if (rect.top >= 0 && rect.bottom <= window.innerHeight) {
                     v.play().catch(() => {});
@@ -1430,6 +1431,7 @@ class TikTokClone {
 
                 if (entry.isIntersecting) {
                     if (!paywall || paywall.classList.contains('hidden')) {
+                        if (this.audioUnlocked) video.muted = false;
                         // Attempt to play automatically (might be blocked until user interacts)
                         const playPromise = video.play();
                         if (playPromise !== undefined) {

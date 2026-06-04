@@ -262,7 +262,8 @@ body {
     transition: fill 0.25s ease, transform 0.2s ease;
     margin-bottom: 5px;
 }
-.heart-icon { fill: white; }
+.heart-icon { fill: white; transition: fill 0.2s ease; }
+.like-btn-action.liked .heart-icon { fill: var(--tiktok-red); }
 .stack-item:active svg { filter: drop-shadow(0 0 12px rgba(255,255,255,0.6)); }
 .stack-text {
     font-size: clamp(10px, 2.8vw, 13px);
