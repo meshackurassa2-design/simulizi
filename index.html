@@ -24,13 +24,21 @@
 
         <!-- 1. HOME VIEW (For You Page) -->
         <section id="home-view" class="view active">
-            <!-- Top Nav -->
-            <div class="top-nav">
-                <div class="nav-tabs" style="position:absolute; left:50%; transform:translateX(-50%);">
+            <!-- Top Nav for Home -->
+            <div class="top-nav" id="home-top-nav">
+                <!-- Back Button (hidden by default) -->
+                <div class="nav-icon hidden" id="home-back-btn" style="display:none;" onclick="app.closeProfileVideo()">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                </div>
+                <!-- LIVE Icon -->
+                <div class="nav-icon" id="home-live-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><polygon points="8 10 16 14 8 18 8 10"></polygon></svg>
+                </div>
+                <div class="nav-tabs" id="home-nav-tabs" style="position:absolute; left:50%; transform:translateX(-50%);">
                     <span class="tab" id="tab-following" onclick="app.switchFeed('following')">Following</span>
                     <span class="tab active" id="tab-foryou" onclick="app.switchFeed('foryou')">For You</span>
                 </div>
-                <div class="nav-icon" onclick="app.openSearch()" style="margin-left:auto;">
+                <div class="nav-icon" id="home-search-icon" onclick="app.openSearch()" style="margin-left:auto;">
                     <!-- Search Icon -->
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                 </div>
@@ -172,13 +180,15 @@
             </div>
         </section>
 
-        <!-- 5. PROFILE VIEW (2024 Strict Layout) -->
-        <section id="profile-view" class="view hidden" style="background:#fff; color:#000;">
+        <!-- 5. PROFILE VIEW (Premium Dark Layout) -->
+        <section id="profile-view" class="view hidden" style="background:#000; color:#fff;">
             <div class="profile-header-2024">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.5"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
-                <div class="profile-name-dropdown">
-                    user_12345 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
+                <div class="profile-name-dropdown" style="color:white;">
+                    user_12345 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                 </div>
+                <!-- Right spacer to balance header -->
+                <div style="width:24px;"></div>
             </div>
             
             <div class="profile-scroll-area">
@@ -194,26 +204,17 @@
                     
                     <!-- 2024 Exact Action Buttons Row -->
                     <div class="profile-actions-row">
-                        <button class="action-btn-gray" style="width:60%;" onclick="app.openEditProfileModal()">Edit profile</button>
+                        <button class="action-btn-gray" style="width:100%; max-width:200px;" onclick="app.openEditProfileModal()">Edit profile</button>
                     </div>
                     
-                    <button id="btn-admin-dashboard" class="action-btn-gray" onclick="app.openAdminDashboard()" style="display:none; width:100%; margin-top:10px; background:#fff3f3; color:var(--tiktok-red); border:1px solid #ffcccc;">
+                    <button id="btn-admin-dashboard" class="action-btn-gray" onclick="app.openAdminDashboard()" style="display:none; width:100%; margin-top:10px; background:rgba(255,44,85,0.1); color:var(--tiktok-red); border:1px solid rgba(255,44,85,0.3);">
                         Admin Dashboard
                     </button>
                 </div>
 
                 <div class="profile-tabs-2024">
-                    <div class="ptab active">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-                    </div>
-                    <div class="ptab">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                    </div>
-                    <div class="ptab">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
-                    </div>
-                    <div class="ptab">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                    <div class="ptab active" style="flex:1;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
                     </div>
                 </div>
                 <div class="profile-grid">

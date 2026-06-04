@@ -608,10 +608,70 @@ class TikTokClone {
             videos.forEach(video => {
                 const item = document.createElement('div');
                 item.className = 'grid-item';
+                item.onclick = () => this.openProfileVideo(video.id);
                 item.innerHTML = `<video src="${video.video_url}#t=0.1" style="width:100%; height:100%; object-fit:cover;" preload="metadata" muted></video>`;
                 profileGrid.appendChild(item);
             });
         }
+    }
+
+    async openProfileVideo(startVideoId) {
+        // Fetch all profile videos so we can swipe through them
+        const { data: videos, error } = await supabaseClient
+            .from('video_details')
+            .select('*')
+            .eq('author_id', this.state.user.id)
+            .order('created_at', { ascending: false });
+
+        if (error || !videos || videos.length === 0) return;
+
+        // Reorder array so clicked video is first
+        const clickedVideoIndex = videos.findIndex(v => v.id === startVideoId);
+        let sortedVideos = videos;
+        if (clickedVideoIndex > 0) {
+            const clicked = videos.splice(clickedVideoIndex, 1)[0];
+            sortedVideos = [clicked, ...videos];
+        }
+
+        // Configure UI for Profile Video mode
+        this.isProfileVideoMode = true;
+        
+        // Hide standard nav, show back button
+        document.getElementById('home-live-icon').style.display = 'none';
+        document.getElementById('home-nav-tabs').style.display = 'none';
+        document.getElementById('home-search-icon').style.display = 'none';
+        
+        const backBtn = document.getElementById('home-back-btn');
+        backBtn.style.display = 'flex';
+        backBtn.classList.remove('hidden');
+        
+        // Hide bottom nav
+        document.getElementById('main-nav').style.display = 'none';
+
+        // Render feed and navigate
+        await this.renderFeedData(sortedVideos);
+        this.handleNavClick('home-view', true); // pass true to skip main-nav update
+    }
+
+    closeProfileVideo() {
+        this.isProfileVideoMode = false;
+        
+        // Restore standard UI
+        document.getElementById('home-live-icon').style.display = 'flex';
+        document.getElementById('home-nav-tabs').style.display = 'flex';
+        document.getElementById('home-search-icon').style.display = 'flex';
+        
+        const backBtn = document.getElementById('home-back-btn');
+        backBtn.style.display = 'none';
+        backBtn.classList.add('hidden');
+        
+        document.getElementById('main-nav').style.display = 'flex';
+
+        // Return to profile
+        this.handleNavClick('profile-view');
+        
+        // Reset feed
+        this.renderFeed();
     }
 
     openEditProfileModal() {
@@ -929,8 +989,9 @@ class TikTokClone {
 
     // --- HOME FEED & VIDEO LOGIC ---
     async renderFeed() {
+        if (this.isProfileVideoMode) return; // Managed by openProfileVideo
+
         const container = document.getElementById('feed-container');
-        const template = document.getElementById('media-template');
         container.innerHTML = '<div style="display:flex; justify-content:center; align-items:center; height:100%;"><div class="record-spin" style="border-top-color:#fff;"></div></div>';
 
         let query = supabaseClient.from('video_details').select('*').order('created_at', { ascending: false });
@@ -958,6 +1019,12 @@ class TikTokClone {
 
         // Fetch real videos from the database view
         const { data: videos, error } = await query;
+        this.renderFeedData(videos, error);
+    }
+
+    async renderFeedData(videos, error = null) {
+        const container = document.getElementById('feed-container');
+        const template = document.getElementById('media-template');
 
         if (error || !videos || videos.length === 0) {
             container.innerHTML = '<div style="display:flex; justify-content:center; align-items:center; height:100%; color:white; padding:40px; text-align:center;">No videos yet! Be the first to upload.</div>';
