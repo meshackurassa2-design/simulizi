@@ -113,8 +113,8 @@ class TikTokClone {
                 }
             });
 
+            this.setupIntersectionObserver(); // MUST be first so feedObserver exists when renderFeed appends cards
             this.renderFeed();
-            this.setupIntersectionObserver();
             this.setupInboxInteractions();
             this.setupProfileTabs();
             this.updateInboxUI();
@@ -989,7 +989,8 @@ class TikTokClone {
                     .then(({data}) => {
                         if (data) {
                             liked = true;
-                            heartIcon.classList.add('liked');
+                            heartIcon.setAttribute('fill', 'var(--tiktok-red)');
+                            heartIcon.setAttribute('stroke', 'var(--tiktok-red)');
                         }
                     });
             }
@@ -1000,12 +1001,23 @@ class TikTokClone {
                 liked = !liked;
                 
                 if (liked) {
-                    heartIcon.classList.add('liked');
+                    heartIcon.setAttribute('fill', 'var(--tiktok-red)');
+                    heartIcon.setAttribute('stroke', 'var(--tiktok-red)');
                     baseLikes++;
                     likesCount.textContent = baseLikes;
-                    await supabaseClient.from('likes').insert([{ video_id: media.id, user_id: this.state.user.id }]);
+                    const { error } = await supabaseClient.from('likes').insert([{ video_id: media.id, user_id: this.state.user.id }]);
+                    if (error) {
+                        // Revert on failure
+                        liked = false;
+                        heartIcon.setAttribute('fill', 'rgba(0,0,0,0.3)');
+                        heartIcon.setAttribute('stroke', 'white');
+                        baseLikes--;
+                        likesCount.textContent = baseLikes;
+                        console.error('Like failed:', error.message);
+                    }
                 } else {
-                    heartIcon.classList.remove('liked');
+                    heartIcon.setAttribute('fill', 'rgba(0,0,0,0.3)');
+                    heartIcon.setAttribute('stroke', 'white');
                     baseLikes--;
                     likesCount.textContent = baseLikes;
                     await supabaseClient.from('likes').delete().eq('video_id', media.id).eq('user_id', this.state.user.id);
@@ -1076,6 +1088,8 @@ class TikTokClone {
             });
 
             container.appendChild(clone);
+            // Attach intersection observer for autoplay
+            if (this.feedObserver) this.feedObserver.observe(mediaItem);
         });
     }
 
@@ -1310,29 +1324,27 @@ class TikTokClone {
     setupIntersectionObserver() {
         const options = { root: document.getElementById('feed-container'), threshold: 0.6 };
         
-        const observer = new IntersectionObserver((entries) => {
+        this.feedObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 const video = entry.target.querySelector('.media-video');
+                if (!video) return;
                 const paywall = entry.target.querySelector('.paywall-glass');
                 const recordSpin = entry.target.querySelector('.record-spin');
                 const playPauseInd = entry.target.querySelector('.play-pause-indicator');
 
                 if (entry.isIntersecting) {
-                    // Try to play if no paywall
-                    if (paywall.classList.contains('hidden')) {
-                        video.play().catch(e => console.log("Autoplay prevented"));
-                        recordSpin.classList.remove('paused');
-                        playPauseInd.classList.remove('show');
+                    if (!paywall || paywall.classList.contains('hidden')) {
+                        video.play().catch(() => {});
+                        if (recordSpin) recordSpin.classList.remove('paused');
+                        if (playPauseInd) playPauseInd.classList.remove('show');
                     }
                 } else {
                     video.pause();
-                    video.currentTime = 0; // reset
-                    recordSpin.classList.add('paused');
+                    video.currentTime = 0;
+                    if (recordSpin) recordSpin.classList.add('paused');
                 }
             });
         }, options);
-
-        document.querySelectorAll('.media-item').forEach(item => observer.observe(item));
     }
 
     unlockMedia(id, price, paywallElement, video) {
