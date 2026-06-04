@@ -124,17 +124,20 @@ class TikTokClone {
     }
 
     async ensureProfileExists() {
-        if (!this.state.user) return;
-        const { data, error } = await supabaseClient.from('profiles').select('id').eq('id', this.state.user.id).single();
+        if (!this.state.user) return null;
+        const { data, error: selectError } = await supabaseClient.from('profiles').select('id').eq('id', this.state.user.id).single();
         if (!data) {
             const handle = this.state.user.user_metadata?.username || this.state.user.email.split('@')[0];
-            await supabaseClient.from('profiles').insert({
+            const { error: insertError } = await supabaseClient.from('profiles').insert({
                 id: this.state.user.id,
-                username: handle,
-                role: this.state.user.user_metadata?.role || 'watcher',
-                is_verified: false
+                username: handle
             });
+            if (insertError) {
+                console.error("Profile insert failed:", insertError);
+                return insertError;
+            }
         }
+        return null;
     }
 
     // --- NAVIGATION & AUTH ---
@@ -1248,7 +1251,11 @@ class TikTokClone {
         if (!this.recordedBlob) return;
         
         // Guarantee profile exists so foreign key doesn't fail
-        await this.ensureProfileExists();
+        const profileError = await this.ensureProfileExists();
+        if (profileError) {
+            alert("Database Error: Could not verify your Profile.\n\nDetails: " + profileError.message);
+            return;
+        }
 
         const caption = (document.getElementById('upload-caption-input')?.value || '').trim() || 'New Simulizi!';
         const btn = document.getElementById('btn-post-now');
