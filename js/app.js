@@ -1049,7 +1049,10 @@ class TikTokClone {
             if (media.author_avatar_url) {
                 profileImg.style.backgroundImage = `url('${media.author_avatar_url}')`;
             } else {
-                profileImg.style.backgroundImage = `url('https://ui-avatars.com/api/?name=${media.author_username || 'user'}&background=333&color=fff')`;
+                const defaultAvatar = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ccc'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+                profileImg.style.backgroundImage = `url("${defaultAvatar}")`;
+                profileImg.style.backgroundSize = "cover";
+                profileImg.style.backgroundColor = "#333";
             }
 
             // Store ID on the DOM element for likes/unlocks
@@ -1252,6 +1255,7 @@ class TikTokClone {
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
                     <span style="font-weight:700;font-size:13px;color:#111;">@${username}</span>
                     <span style="font-size:11px;color:#999;">${time}</span>
+                    <span style="font-size:11px;color:#999;font-weight:600;cursor:pointer;" onclick="const inp = document.getElementById('new-comment-input'); inp.value = '@${username} ' + inp.value; inp.focus();">Reply</span>
                 </div>
                 <div style="font-size:14px;color:#333;line-height:1.5;">${comment.text || ''}</div>
             </div>
