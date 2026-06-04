@@ -83,6 +83,15 @@ class TikTokClone {
         document.addEventListener('touchstart', unlockAudio);
 
         this.init();
+
+        // Handle page visibility (switching browser tabs or minimizing the app)
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) {
+                document.querySelectorAll('.media-video').forEach(v => v.pause());
+            } else if (!document.getElementById('home-view').classList.contains('hidden')) {
+                this.resumeVisibleVideo();
+            }
+        });
     }
 
     async init() {
@@ -900,24 +909,48 @@ class TikTokClone {
             this.stopCamera();
         }
 
-        // Pause feed videos if leaving home
+        // Handle feed video playback
         if (viewId !== 'home-view') {
             document.querySelectorAll('.media-video').forEach(v => v.pause());
             document.querySelectorAll('.record-spin').forEach(r => r.classList.add('paused'));
+        } else {
+            // Returning to home, resume visible video
+            this.resumeVisibleVideo();
         }
+    }
+
+    resumeVisibleVideo() {
+        // Find the video that is currently taking up most of the screen
+        document.querySelectorAll('.media-item').forEach(item => {
+            const rect = item.getBoundingClientRect();
+            // If the item is mostly in view
+            if (rect.top >= -100 && rect.bottom <= window.innerHeight + 100) {
+                const vid = item.querySelector('.media-video');
+                if (vid) {
+                    vid.play().catch(e => console.log('Autoplay blocked:', e));
+                    const spin = item.querySelector('.record-spin');
+                    if (spin) spin.classList.remove('paused');
+                }
+            }
+        });
     }
 
     // --- SEARCH LOGIC ---
     openSearch() {
         const sv = document.getElementById('search-view');
         sv.style.display = 'flex';
+        document.querySelectorAll('.media-video').forEach(v => v.pause());
         setTimeout(() => document.getElementById('search-input').focus(), 100);
     }
 
     closeSearch() {
-        document.getElementById('search-view').style.display = 'none';
+        const sv = document.getElementById('search-view');
+        sv.style.display = 'none';
         document.getElementById('search-input').value = '';
         document.getElementById('search-results-container').innerHTML = '<div style="color:#aaa; text-align:center; padding-top:60px; font-size:14px;">Type to search users or videos...</div>';
+        if (!document.getElementById('home-view').classList.contains('hidden')) {
+            this.resumeVisibleVideo();
+        }
     }
 
     async performSearch(query) {
