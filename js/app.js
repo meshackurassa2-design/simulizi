@@ -1033,10 +1033,20 @@ class TikTokClone {
 
         // Fetch real videos from the database view
         const { data: videos, error } = await query;
-        this.renderFeedData(videos, error);
+        
+        let userFollowingIds = new Set();
+        if (this.state.isAuthenticated) {
+            const { data: userFollows } = await supabaseClient
+                .from('follows')
+                .select('following_id')
+                .eq('follower_id', this.state.user.id);
+            if (userFollows) userFollowingIds = new Set(userFollows.map(f => f.following_id));
+        }
+
+        this.renderFeedData(videos, error, userFollowingIds);
     }
 
-    async renderFeedData(videos, error = null) {
+    async renderFeedData(videos, error = null, userFollowingIds = new Set()) {
         const container = document.getElementById('feed-container');
         const template = document.getElementById('media-template');
 
@@ -1049,6 +1059,31 @@ class TikTokClone {
             const clone = template.content.cloneNode(true);
             const mediaItem = clone.querySelector('.media-item');
             const video = clone.querySelector('.media-video');
+            
+            // Setup follow badge
+            const followBadge = clone.querySelector('.follow-badge');
+            if (followBadge) {
+                if (this.state.isAuthenticated && (media.author_id === this.state.user.id || userFollowingIds.has(media.author_id))) {
+                    followBadge.style.display = 'none';
+                } else {
+                    followBadge.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        if (!this.state.isAuthenticated) return this.showAuthModal();
+                        
+                        followBadge.style.display = 'none'; // Optimistic
+                        
+                        const { error: followError } = await supabaseClient.from('follows').insert({
+                            follower_id: this.state.user.id,
+                            following_id: media.author_id
+                        });
+                        
+                        if (followError) {
+                            followBadge.style.display = 'flex'; // Revert on fail
+                            console.error('Follow failed:', followError);
+                        }
+                    });
+                }
+            }
             
             video.src = media.video_url;
             
