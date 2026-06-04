@@ -474,7 +474,6 @@ body {
 .action-btn-gray.icon-only { width: 44px; padding: 10px; display: flex; justify-content: center; align-items: center; }
 .profile-tabs-2024 { display: flex; }
 .ptab { flex: 1; display: flex; justify-content: center; padding: 12px 0; cursor: pointer; }
-.ptab.active { border-bottom: 2px solid #fff; }
 .ptab.active svg { stroke: #fff; }
 .profile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; }
 .grid-item { aspect-ratio: 3/4; background: #111; cursor: pointer; position: relative; }
