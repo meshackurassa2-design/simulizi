@@ -111,6 +111,10 @@ class TikTokClone {
                 this.state.user = session.user;
                 await this.ensureProfileExists();
                 this.updateProfileUI();
+                
+                // Restore last visited tab
+                const lastView = localStorage.getItem('lastView') || 'home-view';
+                this.switchTab(lastView);
             } else {
                 // Force login to see content
                 this.showAuthModal();
@@ -894,6 +898,9 @@ class TikTokClone {
         const target = document.getElementById(viewId);
         target.classList.remove('hidden');
         target.classList.add('active');
+
+        // Save state
+        localStorage.setItem('lastView', viewId);
 
         document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
         
