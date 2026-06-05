@@ -123,21 +123,44 @@ CREATE POLICY "follows_insert" ON follows FOR INSERT WITH CHECK (auth.uid() = fo
 DROP POLICY IF EXISTS "follows_delete" ON follows;
 CREATE POLICY "follows_delete" ON follows FOR DELETE USING (auth.uid() = follower_id);
 
--- 10. TikTok-style view counting:
---     - Every play/loop counts as a view (like TikTok)
---     - BUT the creator cannot inflate their own view count
---     - viewer_id is TEXT so it works for both auth users (UUID) and guests (anon_ string)
+-- 10. Unique view tracking — 1 view per person per video (like YouTube/Instagram)
+--     - Creator cannot view their own video
+--     - Same user watching 100 times = still only 1 view
+--     - Each unique account/device = 1 view max
+CREATE TABLE IF NOT EXISTS video_views (
+    video_id UUID NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    viewer_id TEXT NOT NULL,
+    viewed_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (video_id, viewer_id)
+);
+ALTER TABLE video_views ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "video_views_select" ON video_views;
+CREATE POLICY "video_views_select" ON video_views FOR SELECT USING (true);
+
 CREATE OR REPLACE FUNCTION record_view(vid UUID, v_id TEXT)
 RETURNS void AS $$
 DECLARE
   video_owner UUID;
+  rows_inserted INTEGER;
 BEGIN
   -- Get the owner of this video
   SELECT user_id INTO video_owner FROM videos WHERE id = vid;
-  
-  -- Only count if the viewer is NOT the owner
-  -- Compare as text to handle both UUID and anon_ strings
-  IF video_owner::TEXT != v_id THEN
+
+  -- Skip if viewer is the creator
+  IF video_owner::TEXT = v_id THEN
+    RETURN;
+  END IF;
+
+  -- Try to insert the view record (unique per video+viewer)
+  INSERT INTO video_views (video_id, viewer_id)
+  VALUES (vid, v_id)
+  ON CONFLICT (video_id, viewer_id) DO NOTHING;
+
+  -- GET DIAGNOSTICS is the reliable way to check if the row was actually inserted
+  GET DIAGNOSTICS rows_inserted = ROW_COUNT;
+
+  -- Only increment the counter if this is a brand new view
+  IF rows_inserted > 0 THEN
     UPDATE videos SET view_count = COALESCE(view_count, 0) + 1 WHERE id = vid;
   END IF;
 END;
