@@ -9,8 +9,6 @@ on:
 jobs:
   build:
     name: Build iOS IPA
-    # macos-14 has both Xcode 15 and 16 installed. We pin to Xcode 15.4
-    # to avoid iOS 18.5 SDK which blocks unsigned device builds.
     runs-on: macos-14
 
     steps:
@@ -18,11 +16,16 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      # ── 2. Pin Xcode to 15.4 (latest on macos-13 runner) ─────────────────
+      # ── 2. Show available Xcode versions and pin to 15.4 ──────────────────
       - name: Select Xcode 15.4
         run: |
+          echo "=== Available Xcode versions ==="
+          ls /Applications/ | grep Xcode
           sudo xcode-select -switch /Applications/Xcode_15.4.app
+          echo "=== Active Xcode ==="
           xcodebuild -version
+          echo "=== Active SDK ==="
+          xcodebuild -showsdks | grep iphoneos
 
       # ── 3. Node.js ────────────────────────────────────────────────────────
       - name: Setup Node.js
@@ -30,7 +33,7 @@ jobs:
         with:
           node-version: '20'
 
-      # ── 4. Capacitor ─────────────────────────────────────────────────────
+      # ── 4. Capacitor ──────────────────────────────────────────────────────
       - name: Install Capacitor
         run: |
           npm init -y
@@ -41,25 +44,27 @@ jobs:
         run: |
           mkdir -p www
           cp -r css js assets index.html www/
+          echo "=== www contents ==="
+          ls www/
 
-      # ── 6. Init Capacitor & add iOS platform ──────────────────────────────
+      # ── 6. Init Capacitor & add iOS ───────────────────────────────────────
       - name: Initialize Capacitor & Add iOS
         run: |
           npx cap init "Simulizi" "com.meshackurassa2.simulizi" --web-dir www
           npx cap add ios
 
-      # ── 7. Inject mandatory iOS privacy permission strings ────────────────
+      # ── 7. Privacy permission strings ─────────────────────────────────────
       - name: Inject Privacy Permissions into Info.plist
         run: |
           PLIST="ios/App/App/Info.plist"
-          inject() {
-            /usr/libexec/PlistBuddy -c "Add :$1 string '$2'" "$PLIST" 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Set :$1 '$2'" "$PLIST"
-          }
-          inject NSCameraUsageDescription      "Simulizi needs camera access to record videos."
-          inject NSMicrophoneUsageDescription  "Simulizi needs microphone access to record audio."
-          inject NSPhotoLibraryUsageDescription "Simulizi needs photo library access to upload videos."
-          inject NSPhotoLibraryAddUsageDescription "Simulizi needs photo library access to save videos."
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Simulizi needs camera access to record videos.'" "$PLIST" 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Simulizi needs camera access to record videos.'" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Simulizi needs microphone access to record audio.'" "$PLIST" 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Simulizi needs microphone access to record audio.'" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Simulizi needs photo library access to upload videos.'" "$PLIST" 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription 'Simulizi needs photo library access to upload videos.'" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Simulizi needs photo library access to save videos.'" "$PLIST" 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryAddUsageDescription 'Simulizi needs photo library access to save videos.'" "$PLIST"
 
       # ── 8. App icons ──────────────────────────────────────────────────────
       - name: Generate App Icons
@@ -67,8 +72,8 @@ jobs:
           npm install @capacitor/assets --save-dev
           npx @capacitor/assets generate --ios
 
-      # ── 9. Pod install — disable signing for ALL pod targets via post_install
-      - name: Install CocoaPods Dependencies (signing disabled)
+      # ── 9. Pod install (signing fully disabled) ───────────────────────────
+      - name: Install CocoaPods Dependencies
         run: |
           cd ios/App
           cat >> Podfile << 'PODFILE_PATCH'
@@ -85,9 +90,10 @@ jobs:
           PODFILE_PATCH
           pod install
 
-      # ── 10. Build (Xcode 15 + iOS 17 SDK — no signing needed) ────────────
+      # ── 10. Build — pipe to tee so errors are visible in logs ─────────────
       - name: Build iOS App Binary
         run: |
+          set -o pipefail
           xcodebuild build \
             -workspace ios/App/App.xcworkspace \
             -scheme App \
@@ -100,27 +106,31 @@ jobs:
             EXPANDED_CODE_SIGN_IDENTITY="" \
             PROVISIONING_PROFILE="" \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            | xcpretty --utf
+            2>&1 | tee "$GITHUB_WORKSPACE/build.log"
 
-      # ── 11. ldid fake-sign every binary (main binary + all frameworks) ────
+      # ── 11. On failure: print last 100 lines of build log ─────────────────
+      - name: Print Build Log (on failure)
+        if: failure()
+        run: |
+          echo "=== LAST 100 LINES OF BUILD LOG ==="
+          tail -100 "$GITHUB_WORKSPACE/build.log" || echo "No build log found"
+
+      # ── 12. ldid fake-sign every Mach-O binary ────────────────────────────
       - name: Sign App Bundle with ldid
         run: |
           brew install ldid
           APP="$GITHUB_WORKSPACE/DerivedData/Build/Products/Release-iphoneos/App.app"
-
-          echo "App bundle contents:"
+          echo "=== App bundle ==="
           ls "$APP"
-
-          # Sign all dylibs and framework binaries
           find "$APP" -type f | while read -r f; do
             if file "$f" | grep -q "Mach-O"; then
               echo "Signing: $f"
               ldid -S "$f" || true
             fi
           done
-          echo "✅ All Mach-O binaries signed with ldid"
+          echo "✅ ldid signing done"
 
-      # ── 12. Package .ipa ──────────────────────────────────────────────────
+      # ── 13. Package .ipa ──────────────────────────────────────────────────
       - name: Package into IPA
         run: |
           APP="$GITHUB_WORKSPACE/DerivedData/Build/Products/Release-iphoneos/App.app"
@@ -128,9 +138,9 @@ jobs:
           cp -r "$APP" "$GITHUB_WORKSPACE/ipa_out/Payload/"
           cd "$GITHUB_WORKSPACE/ipa_out"
           zip -r Simulizi-v1.0.ipa Payload
-          echo "✅ IPA size: $(du -sh Simulizi-v1.0.ipa)"
+          echo "✅ IPA: $(du -sh Simulizi-v1.0.ipa)"
 
-      # ── 13. Upload artifact ───────────────────────────────────────────────
+      # ── 14. Upload ────────────────────────────────────────────────────────
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
