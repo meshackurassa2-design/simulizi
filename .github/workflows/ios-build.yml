@@ -50,21 +50,19 @@ jobs:
       - name: Build Unsigned iOS App
         run: |
           cd ios/App
-          # Disable code signing in the Podfile to prevent Pod signing errors
-          sed -i '' "s/target.build_configurations.each do |config|/target.build_configurations.each do |config|\n      config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'\n      config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'/g" Podfile
+          # Enable Ad-Hoc signing in Podfile instead of completely disabling it
+          sed -i '' "s/target.build_configurations.each do |config|/target.build_configurations.each do |config|\n      config.build_settings['CODE_SIGN_IDENTITY'] = '-'/g" Podfile
           pod install
           
-          # Build for iOS device without code signing
+          # Build for iOS device with Ad-Hoc signing (better for AltStore/Sideloadly)
           xcodebuild build \
             -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath build \
+            CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_IDENTITY="" \
-            EXPANDED_CODE_SIGN_IDENTITY="" \
             COMPILER_INDEX_STORE_ENABLE=NO
             
           # Package unsigned IPA
