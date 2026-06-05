@@ -227,6 +227,10 @@ class TikTokClone {
             this.renderFeed();
         }
         
+        if (viewId === 'profile-view') {
+            this.updateProfileUI(); // Ensure it always shows current user's profile
+        }
+        
         this.switchTab(viewId);
     }
 
@@ -989,17 +993,30 @@ class TikTokClone {
             }
         };
 
+        const formatCount = (num) => {
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        };
+
         // Render Creator's Gallery
-        const { data: videos } = await supabaseClient.from('videos').select('id, video_url').eq('user_id', authorId).order('created_at', { ascending: false });
+        const { data: videos } = await supabaseClient.from('video_details').select('id, video_url, view_count').eq('author_id', authorId).order('created_at', { ascending: false });
         profileGrid.innerHTML = '';
         if (videos) {
             videos.forEach(v => {
                 const item = document.createElement('div');
                 item.className = 'grid-item';
+                
                 const video = document.createElement('video');
                 video.src = v.video_url + '#t=0.1';
                 video.muted = true;
                 item.appendChild(video);
+                
+                const viewsDiv = document.createElement('div');
+                viewsDiv.className = 'grid-item-views';
+                viewsDiv.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> ${formatCount(v.view_count || 0)}`;
+                item.appendChild(viewsDiv);
+
                 item.onclick = () => this.openProfileVideo(v.id);
                 profileGrid.appendChild(item);
             });
