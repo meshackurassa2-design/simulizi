@@ -662,22 +662,29 @@ class TikTokClone {
             videos.forEach(video => {
                 const item = document.createElement('div');
                 item.className = 'grid-item';
-                item.onclick = () => this.openProfileVideo(video.id);
+                item.onclick = () => this.openProfileVideo(video.id, this.state.user?.id);
                 item.innerHTML = `<video src="${video.video_url}#t=0.1" style="width:100%; height:100%; object-fit:cover;" preload="metadata" muted></video>`;
                 profileGrid.appendChild(item);
             });
         }
     }
 
-    async openProfileVideo(startVideoId) {
+    async openProfileVideo(startVideoId, authorId) {
+        // If authorId is not provided, default to current user's ID
+        const targetUserId = authorId || (this.state.user ? this.state.user.id : null);
+        if (!targetUserId) return;
+
         // Fetch all profile videos so we can swipe through them
         const { data: videos, error } = await supabaseClient
             .from('video_details')
             .select('*')
-            .eq('author_id', this.state.user.id)
+            .eq('author_id', targetUserId)
             .order('created_at', { ascending: false });
 
         if (error || !videos || videos.length === 0) return;
+
+        // Keep track of the author id we are playing profile videos for
+        this.currentProfileVideoAuthorId = targetUserId;
 
         // Reorder array so clicked video is first
         const clickedVideoIndex = videos.findIndex(v => v.id === startVideoId);
@@ -722,7 +729,13 @@ class TikTokClone {
         document.getElementById('main-nav').style.display = 'flex';
 
         // Return to profile
-        this.handleNavClick('profile-view');
+        if (this.currentProfileVideoAuthorId && (!this.state.user || this.currentProfileVideoAuthorId !== this.state.user.id)) {
+            // It was someone else's profile! Re-load their profile
+            this.loadCreatorProfile(this.currentProfileVideoAuthorId);
+        } else {
+            // It was current user's profile
+            this.handleNavClick('profile-view');
+        }
         
         // Reset feed
         this.renderFeed();
@@ -1024,7 +1037,7 @@ class TikTokClone {
                 viewsDiv.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> ${formatCount(v.view_count || 0)}`;
                 item.appendChild(viewsDiv);
 
-                item.onclick = () => this.openProfileVideo(v.id);
+                item.onclick = () => this.openProfileVideo(v.id, authorId);
                 profileGrid.appendChild(item);
             });
         }

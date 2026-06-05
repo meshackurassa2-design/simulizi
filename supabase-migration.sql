@@ -127,12 +127,15 @@ CREATE POLICY "follows_delete" ON follows FOR DELETE USING (auth.uid() = followe
 --     - Creator cannot view their own video
 --     - Same user watching 100 times = still only 1 view
 --     - Each unique account/device = 1 view max
-CREATE TABLE IF NOT EXISTS video_views (
+DROP TABLE IF EXISTS video_views CASCADE;
+
+CREATE TABLE video_views (
     video_id UUID NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
     viewer_id TEXT NOT NULL,
     viewed_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (video_id, viewer_id)
 );
+
 ALTER TABLE video_views ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "video_views_select" ON video_views;
 CREATE POLICY "video_views_select" ON video_views FOR SELECT USING (true);
@@ -143,6 +146,11 @@ DECLARE
   video_owner UUID;
   rows_inserted INTEGER;
 BEGIN
+  -- Prevent null or empty viewer IDs
+  IF v_id IS NULL OR v_id = '' THEN
+    RETURN;
+  END IF;
+
   -- Get the owner of this video
   SELECT user_id INTO video_owner FROM videos WHERE id = vid;
 
@@ -165,6 +173,7 @@ BEGIN
   END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- 11. RPC for adding watch time securely
 CREATE OR REPLACE FUNCTION add_watch_time(vid UUID, seconds INT)
 RETURNS void AS $$

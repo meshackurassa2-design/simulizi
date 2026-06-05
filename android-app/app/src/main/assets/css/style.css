@@ -24,6 +24,9 @@
 html {
     height: 100%;
     height: -webkit-fill-available;
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
 }
 
 body {
@@ -33,8 +36,13 @@ body {
     background-color: var(--bg-dark);
     color: var(--text-main);
     overflow: hidden;
-    /* Prevent pull-to-refresh on iOS */
+    overscroll-behavior-y: none;
     overscroll-behavior: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
 }
 
 #app-container {

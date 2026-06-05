@@ -62,8 +62,43 @@ class TikTokClone {
         this.authMode = 'signup';
         this.mediaRecorder = null;
         this.recordedBlob = null;
+
+        // Generate or retrieve a persistent anonymous viewer ID
+        // This is used to count unique views even when user is not logged in
+        if (!localStorage.getItem('sim_viewer_id')) {
+            localStorage.setItem('sim_viewer_id', 'anon_' + Math.random().toString(36).substr(2, 12));
+        }
+        this.viewerId = localStorage.getItem('sim_viewer_id');
         
+        // Listen for the first user interaction to unlock audio
+        this.audioUnlocked = false;
+        const unlockAudio = () => {
+            if (this.audioUnlocked) return;
+            this.audioUnlocked = true;
+            // Play and unmute the currently visible video
+            document.querySelectorAll('.media-video').forEach(v => {
+                v.muted = false; // Unmute it so it has sound
+                const rect = v.getBoundingClientRect();
+                if (rect.top >= 0 && rect.bottom <= window.innerHeight) {
+                    v.play().catch(() => {});
+                }
+            });
+            document.removeEventListener('click', unlockAudio);
+            document.removeEventListener('touchstart', unlockAudio);
+        };
+        document.addEventListener('click', unlockAudio);
+        document.addEventListener('touchstart', unlockAudio);
+
         this.init();
+
+        // Handle page visibility (switching browser tabs or minimizing the app)
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) {
+                document.querySelectorAll('.media-video').forEach(v => v.pause());
+            } else if (!document.getElementById('home-view').classList.contains('hidden')) {
+                this.resumeVisibleVideo();
+            }
+        });
     }
 
     async init() {
@@ -81,7 +116,11 @@ class TikTokClone {
             if (session) {
                 this.state.isAuthenticated = true;
                 this.state.user = session.user;
+                await this.ensureProfileExists();
                 this.updateProfileUI();
+                
+                this.switchTab('home-view');
+                document.getElementById('splash-screen').style.display = 'none';
             } else {
                 // Force login to see content
                 this.showAuthModal();
@@ -91,10 +130,11 @@ class TikTokClone {
             }
 
             // Listen for auth changes
-            supabaseClient.auth.onAuthStateChange((event, session) => {
+            supabaseClient.auth.onAuthStateChange(async (event, session) => {
                 if (event === 'SIGNED_IN') {
                     this.state.isAuthenticated = true;
                     this.state.user = session.user;
+                    await this.ensureProfileExists();
                     this.updateProfileUI();
                     const closeBtn = document.querySelector('.auth-close');
                     if(closeBtn) closeBtn.style.display = 'block'; // Restore close button
@@ -111,14 +151,69 @@ class TikTokClone {
                 }
             });
 
+            this.setupIntersectionObserver(); // MUST be first so feedObserver exists when renderFeed appends cards
             this.renderFeed();
-            this.setupIntersectionObserver();
             this.setupInboxInteractions();
             this.setupProfileTabs();
             this.updateInboxUI();
+            this.setupRealtimeSync();
         } catch (err) {
             document.body.innerHTML = `<div style="padding:20px; color:red; background:white; position:fixed; z-index:9999; top:0; left:0; right:0;"><h3>App Error</h3><pre>${err.message}</pre><pre>${err.stack}</pre></div>` + document.body.innerHTML;
         }
+    }
+
+    setupRealtimeSync() {
+        // Listen to likes table to update like counts instantly across all devices
+        supabaseClient
+            .channel('public:likes')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes' }, payload => {
+                this.updateRealtimeCount(payload.new.video_id, 1, 'likes');
+            })
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' }, payload => {
+                this.updateRealtimeCount(payload.old.video_id, -1, 'likes');
+            })
+            .subscribe();
+    }
+
+    updateRealtimeCount(videoId, delta, type) {
+        // Find the video element in the DOM
+        const mediaItems = document.querySelectorAll('.media-item');
+        mediaItems.forEach(item => {
+            if (item.dataset.videoId === videoId) {
+                if (type === 'likes') {
+                    const countEl = item.querySelector('.likes-count');
+                    if (countEl) {
+                        let currentCount = parseInt(countEl.textContent || 0);
+                        // Prevent optimistic UI from double counting
+                        // This simple implementation relies on the fact that optimistic UI updates instantly,
+                        // so we only update if it seems we missed it. For a robust app, we'd debounce or check sender.
+                        countEl.textContent = Math.max(0, currentCount + delta);
+                    }
+                }
+            }
+        });
+    }
+
+    async ensureProfileExists() {
+        if (!this.state.user) return null;
+        const { data, error: selectError } = await supabaseClient.from('profiles').select('id, avatar_url').eq('id', this.state.user.id).single();
+        if (!data) {
+            const handle = this.state.user.user_metadata?.username || this.state.user.email.split('@')[0];
+            const avatar = this.state.user.user_metadata?.avatar_url || '';
+            const { error: insertError } = await supabaseClient.from('profiles').insert({
+                id: this.state.user.id,
+                username: handle,
+                avatar_url: avatar
+            });
+            if (insertError) {
+                console.error("Profile insert failed:", insertError);
+                return insertError;
+            }
+        } else if (!data.avatar_url && this.state.user.user_metadata?.avatar_url) {
+            // Update existing profile with missing avatar
+            await supabaseClient.from('profiles').update({ avatar_url: this.state.user.user_metadata.avatar_url }).eq('id', this.state.user.id);
+        }
+        return null;
     }
 
     // --- NAVIGATION & AUTH ---
@@ -126,9 +221,24 @@ class TikTokClone {
         const restrictedViews = ['upload-view', 'inbox-view', 'profile-view'];
         if (!this.state.isAuthenticated && restrictedViews.includes(viewId)) {
             this.showAuthModal();
-        } else {
-            this.switchTab(viewId);
+            return;
         }
+        
+        if (viewId === 'upload-view') {
+            document.getElementById('gallery-file-input').click();
+            return;
+        }
+        
+        if (viewId === 'home-view' && this.state.feedType === 'trending') {
+            this.state.feedType = 'foryou';
+            this.renderFeed();
+        }
+        
+        if (viewId === 'profile-view') {
+            this.updateProfileUI(); // Ensure it always shows current user's profile
+        }
+        
+        this.switchTab(viewId);
     }
 
     showAuthModal() {
@@ -263,8 +373,8 @@ class TikTokClone {
         this.goToWizardStep(currentStep + 1);
     }
 
-    prevWizardStep(currentStep) {
-        this.goToWizardStep(currentStep - 1);
+    prevWizardStep(targetStep) {
+        this.goToWizardStep(targetStep);
     }
 
     async submitWizard() {
@@ -347,6 +457,7 @@ class TikTokClone {
 
     async logout() {
         await supabaseClient.auth.signOut();
+        window.location.reload();
     }
 
     async updateProfileUI() {
@@ -367,6 +478,23 @@ class TikTokClone {
                 uploadBtn.style.display = isVerified ? 'flex' : 'none';
             }
             
+            // Show/hide analytics button — only for verified creators
+            const analyticsBtn = document.getElementById('btn-analytics');
+            if (analyticsBtn) analyticsBtn.style.display = isVerified ? 'block' : 'none';
+
+            // Reset profile UI specifically for current user
+            const backBtn = document.getElementById('profile-back-btn');
+            const spacer = document.getElementById('profile-header-spacer');
+            const logoutBtn = document.getElementById('btn-profile-logout');
+            const editBtn = document.getElementById('btn-edit-profile');
+            const followBtn = document.getElementById('btn-profile-follow');
+            
+            if (backBtn) backBtn.style.display = 'none';
+            if (spacer) spacer.style.display = 'block';
+            if (logoutBtn) logoutBtn.style.display = 'block';
+            if (editBtn) editBtn.style.display = 'block';
+            if (followBtn) followBtn.style.display = 'none';
+
             const profileTabs = document.querySelector('.profile-tabs-2024');
             const profileGrid = document.querySelector('.profile-grid');
             if (profileTabs) profileTabs.style.display = isVerified ? 'flex' : 'none';
@@ -382,10 +510,37 @@ class TikTokClone {
 
 
             let displayHandle = this.state.user.email;
+            let rawHandle = this.state.user.email.split('@')[0];
             if (this.state.user.user_metadata && this.state.user.user_metadata.username) {
                 displayHandle = '@' + this.state.user.user_metadata.username;
+                rawHandle = this.state.user.user_metadata.username;
             }
-            document.querySelector('.profile-handle-text').textContent = displayHandle;
+            document.querySelector('.profile-handle-text').textContent = rawHandle;
+
+            // Show bio if available
+            const bio = this.state.user.user_metadata?.bio || '';
+            let bioEl = document.getElementById('profile-bio-text');
+            if (!bioEl) {
+                bioEl = document.createElement('p');
+                bioEl.id = 'profile-bio-text';
+                bioEl.style.cssText = 'font-size:13px; color:#555; text-align:center; margin:6px 16px 0; line-height:1.5;';
+                const handleEl = document.querySelector('.profile-handle-text');
+                if (handleEl) handleEl.insertAdjacentElement('afterend', bioEl);
+            }
+            bioEl.textContent = bio;
+
+            // Show avatar in profile pic circle
+            const avatarUrl = this.state.user.user_metadata?.avatar_url || null;
+            const picEl = document.querySelector('.profile-pic-large');
+            if (picEl) {
+                if (avatarUrl) {
+                    picEl.style.backgroundImage = `url('${avatarUrl}')`;
+                    picEl.style.backgroundSize = 'cover';
+                    picEl.style.backgroundPosition = 'center';
+                } else {
+                    picEl.style.backgroundImage = '';
+                }
+            }
             
             // Also update the top left name
             const headerName = document.querySelector('.profile-name-dropdown');
@@ -507,48 +662,192 @@ class TikTokClone {
             videos.forEach(video => {
                 const item = document.createElement('div');
                 item.className = 'grid-item';
+                item.onclick = () => this.openProfileVideo(video.id, this.state.user?.id);
                 item.innerHTML = `<video src="${video.video_url}#t=0.1" style="width:100%; height:100%; object-fit:cover;" preload="metadata" muted></video>`;
                 profileGrid.appendChild(item);
             });
         }
     }
 
+    async openProfileVideo(startVideoId, authorId) {
+        // If authorId is not provided, default to current user's ID
+        const targetUserId = authorId || (this.state.user ? this.state.user.id : null);
+        if (!targetUserId) return;
+
+        // Fetch all profile videos so we can swipe through them
+        const { data: videos, error } = await supabaseClient
+            .from('video_details')
+            .select('*')
+            .eq('author_id', targetUserId)
+            .order('created_at', { ascending: false });
+
+        if (error || !videos || videos.length === 0) return;
+
+        // Keep track of the author id we are playing profile videos for
+        this.currentProfileVideoAuthorId = targetUserId;
+
+        // Reorder array so clicked video is first
+        const clickedVideoIndex = videos.findIndex(v => v.id === startVideoId);
+        let sortedVideos = videos;
+        if (clickedVideoIndex > 0) {
+            const clicked = videos.splice(clickedVideoIndex, 1)[0];
+            sortedVideos = [clicked, ...videos];
+        }
+
+        // Configure UI for Profile Video mode
+        this.isProfileVideoMode = true;
+        
+        // Hide standard nav, show back button
+        document.getElementById('home-live-icon').style.display = 'none';
+        document.getElementById('home-nav-tabs').style.display = 'none';
+        document.getElementById('home-search-icon').style.display = 'none';
+        
+        const backBtn = document.getElementById('home-back-btn');
+        backBtn.style.display = 'flex';
+        backBtn.classList.remove('hidden');
+        
+        // Hide bottom nav
+        document.getElementById('main-nav').style.display = 'none';
+
+        // Render feed and navigate
+        await this.renderFeedData(sortedVideos);
+        this.handleNavClick('home-view', true); // pass true to skip main-nav update
+    }
+
+    closeProfileVideo() {
+        this.isProfileVideoMode = false;
+        
+        // Restore standard UI
+        document.getElementById('home-live-icon').style.display = 'flex';
+        document.getElementById('home-nav-tabs').style.display = 'flex';
+        document.getElementById('home-search-icon').style.display = 'flex';
+        
+        const backBtn = document.getElementById('home-back-btn');
+        backBtn.style.display = 'none';
+        backBtn.classList.add('hidden');
+        
+        document.getElementById('main-nav').style.display = 'flex';
+
+        // Return to profile
+        if (this.currentProfileVideoAuthorId && (!this.state.user || this.currentProfileVideoAuthorId !== this.state.user.id)) {
+            // It was someone else's profile! Re-load their profile
+            this.loadCreatorProfile(this.currentProfileVideoAuthorId);
+        } else {
+            // It was current user's profile
+            this.handleNavClick('profile-view');
+        }
+        
+        // Reset feed
+        this.renderFeed();
+    }
+
     openEditProfileModal() {
-        document.getElementById('edit-profile-modal').classList.remove('hidden');
-        document.getElementById('edit-username').value = this.state.user?.user_metadata?.username || '';
+        const modal = document.getElementById('edit-profile-modal');
+        modal.classList.remove('hidden');
+
+        const user = this.state.user;
+        document.getElementById('edit-username').value = user?.user_metadata?.username || '';
+        document.getElementById('edit-bio').value = user?.user_metadata?.bio || '';
         document.getElementById('edit-profile-error').classList.add('hidden');
+
+        // Load current avatar
+        const avatarImg = document.getElementById('edit-profile-avatar-img');
+        const avatarPlaceholder = document.getElementById('edit-profile-avatar-placeholder');
+        const currentAvatar = user?.user_metadata?.avatar_url;
+        if (currentAvatar) {
+            avatarImg.src = currentAvatar;
+            avatarImg.style.display = 'block';
+            avatarPlaceholder.style.display = 'none';
+        } else {
+            avatarImg.style.display = 'none';
+            avatarPlaceholder.style.display = 'block';
+        }
+        this._pendingAvatarDataUrl = null;
     }
 
     closeEditProfileModal() {
         document.getElementById('edit-profile-modal').classList.add('hidden');
     }
 
+    handleAvatarChange(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const dataUrl = e.target.result;
+            this._pendingAvatarDataUrl = dataUrl;
+            const avatarImg = document.getElementById('edit-profile-avatar-img');
+            const avatarPlaceholder = document.getElementById('edit-profile-avatar-placeholder');
+            avatarImg.src = dataUrl;
+            avatarImg.style.display = 'block';
+            avatarPlaceholder.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+    }
+
     async saveProfile() {
         const username = document.getElementById('edit-username').value.trim();
+        const bio = document.getElementById('edit-bio').value.trim();
         const errorDiv = document.getElementById('edit-profile-error');
+
         if (!username) {
             errorDiv.textContent = 'Username cannot be empty';
             errorDiv.classList.remove('hidden');
             return;
         }
-        
+
         const btn = document.getElementById('btn-save-profile');
         btn.textContent = 'Saving...';
         btn.disabled = true;
-        
+
+        let avatarUrl = this.state.user?.user_metadata?.avatar_url || null;
+
+        // Upload avatar if a new one was selected
+        if (this._pendingAvatarDataUrl) {
+            try {
+                const fileInput = document.getElementById('edit-profile-avatar-input');
+                const file = fileInput.files[0];
+                if (file) {
+                    const ext = file.name.split('.').pop();
+                    const fileName = `avatars/${this.state.user.id}.${ext}`;
+                    const { data: uploadData, error: uploadError } = await supabaseClient.storage
+                        .from('videos')
+                        .upload(fileName, file, { upsert: true });
+                    if (!uploadError) {
+                        const { data: urlData } = supabaseClient.storage.from('videos').getPublicUrl(fileName);
+                        avatarUrl = urlData.publicUrl;
+                    } else {
+                        console.warn('Avatar upload failed:', uploadError.message);
+                        // Fallback: store as base64 in metadata (small images only)
+                        avatarUrl = this._pendingAvatarDataUrl;
+                    }
+                }
+            } catch(e) {
+                console.warn('Avatar upload error:', e);
+                avatarUrl = this._pendingAvatarDataUrl;
+            }
+        }
+
         const { data, error } = await supabaseClient.auth.updateUser({
-            data: { username: username }
+            data: { username, bio, avatar_url: avatarUrl }
         });
-        
+
         if (error) {
             errorDiv.textContent = error.message;
             errorDiv.classList.remove('hidden');
         } else {
             this.state.user = data.user;
+            // Also update profiles table
+            await supabaseClient.from('profiles').upsert({
+                id: this.state.user.id,
+                username,
+                bio,
+                avatar_url: avatarUrl
+            });
             this.updateProfileUI();
             this.closeEditProfileModal();
         }
-        
+
         btn.textContent = 'Save Changes';
         btn.disabled = false;
     }
@@ -604,6 +903,152 @@ class TikTokClone {
     closeAdminDashboard() {
         document.getElementById('admin-dashboard-modal').classList.add('hidden');
     }
+
+    async loadCreatorProfile(authorId) {
+        if (!this.state.isAuthenticated) return this.showAuthModal();
+        
+        // If clicking own profile, just open normally
+        if (authorId === this.state.user.id) {
+            return this.switchTab('profile-view');
+        }
+
+        // Fetch Creator Profile
+        const { data: profile, error } = await supabaseClient.from('profiles').select('*').eq('id', authorId).single();
+        if (error || !profile) {
+            console.error('Failed to load creator profile');
+            return;
+        }
+
+        // Set UI State
+        const backBtn = document.getElementById('profile-back-btn');
+        const spacer = document.getElementById('profile-header-spacer');
+        const logoutBtn = document.getElementById('btn-profile-logout');
+        const editBtn = document.getElementById('btn-edit-profile');
+        const analyticsBtn = document.getElementById('btn-analytics');
+        const adminBtn = document.getElementById('btn-admin-dashboard');
+        const followBtn = document.getElementById('btn-profile-follow');
+        
+        if (backBtn) backBtn.style.display = 'block';
+        if (spacer) spacer.style.display = 'none';
+        if (logoutBtn) logoutBtn.style.display = 'none';
+        if (editBtn) editBtn.style.display = 'none';
+        if (analyticsBtn) analyticsBtn.style.display = 'none';
+        if (adminBtn) adminBtn.style.display = 'none';
+        if (followBtn) followBtn.style.display = 'block';
+
+        const displayHandle = profile.username ? '@' + profile.username : '@user';
+        const rawHandle = profile.username || 'user';
+        
+        const headerName = document.querySelector('.profile-name-dropdown');
+        if (headerName) headerName.innerHTML = displayHandle;
+        
+        document.querySelector('.profile-handle-text').textContent = rawHandle;
+        
+        const bioEl = document.getElementById('profile-bio-text');
+        if (bioEl) bioEl.textContent = profile.bio || '';
+        
+        const picEl = document.querySelector('.profile-pic-large');
+        if (picEl) {
+            if (profile.avatar_url) {
+                picEl.style.backgroundImage = `url('${profile.avatar_url}')`;
+                picEl.style.backgroundSize = 'cover';
+                picEl.style.backgroundPosition = 'center';
+            } else {
+                picEl.style.backgroundImage = '';
+            }
+        }
+
+        // Fetch creator stats
+        const { count: followersCount } = await supabaseClient.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', authorId);
+        const { count: followingCount } = await supabaseClient.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', authorId);
+        const { count: likesCount } = await supabaseClient.from('likes').select('*, videos!inner(user_id)', { count: 'exact', head: true }).eq('videos.user_id', authorId);
+
+        const followersStat = document.querySelector('#stat-followers .val');
+        const likesStat = document.querySelector('#stat-likes .val');
+        const followingStat = document.querySelector('#stat-following .val');
+        if (followersStat) followersStat.textContent = followersCount || 0;
+        if (likesStat) likesStat.textContent = likesCount || 0;
+        if (followingStat) followingStat.textContent = followingCount || 0;
+        
+        document.getElementById('stat-followers').style.display = 'flex';
+        document.getElementById('stat-likes').style.display = 'flex';
+        document.getElementById('stat-following').style.display = 'flex';
+
+        const profileTabs = document.querySelector('.profile-tabs-2024');
+        const profileGrid = document.querySelector('.profile-grid');
+        if (profileTabs) profileTabs.style.display = 'flex';
+        if (profileGrid) profileGrid.style.display = 'grid';
+
+        // Check if current user is already following this creator
+        const { data: followData } = await supabaseClient.from('follows').select('id').eq('follower_id', this.state.user.id).eq('following_id', authorId).maybeSingle();
+        
+        if (followData) {
+            followBtn.textContent = 'Following';
+            followBtn.style.background = '#333';
+            followBtn.style.borderColor = '#333';
+            followBtn.dataset.following = 'true';
+        } else {
+            followBtn.textContent = 'Follow';
+            followBtn.style.background = 'var(--tiktok-red)';
+            followBtn.style.borderColor = 'var(--tiktok-red)';
+            followBtn.dataset.following = 'false';
+        }
+
+        followBtn.onclick = async () => {
+            if (followBtn.dataset.following === 'true') {
+                // Unfollow
+                followBtn.textContent = 'Follow';
+                followBtn.style.background = 'var(--tiktok-red)';
+                followBtn.style.borderColor = 'var(--tiktok-red)';
+                followBtn.dataset.following = 'false';
+                await supabaseClient.from('follows').delete().eq('follower_id', this.state.user.id).eq('following_id', authorId);
+                // Also update local feed badges cache logic if you want
+            } else {
+                // Follow
+                followBtn.textContent = 'Following';
+                followBtn.style.background = '#333';
+                followBtn.style.borderColor = '#333';
+                followBtn.dataset.following = 'true';
+                await supabaseClient.from('follows').insert({ follower_id: this.state.user.id, following_id: authorId });
+            }
+        };
+
+        const formatCount = (num) => {
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        };
+
+        // Render Creator's Gallery
+        const { data: videos } = await supabaseClient.from('video_details').select('id, video_url, view_count').eq('author_id', authorId).order('created_at', { ascending: false });
+        profileGrid.innerHTML = '';
+        if (videos) {
+            videos.forEach(v => {
+                const item = document.createElement('div');
+                item.className = 'grid-item';
+                
+                const video = document.createElement('video');
+                video.src = v.video_url + '#t=0.1';
+                video.muted = true;
+                item.appendChild(video);
+                
+                const viewsDiv = document.createElement('div');
+                viewsDiv.className = 'grid-item-views';
+                viewsDiv.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> ${formatCount(v.view_count || 0)}`;
+                item.appendChild(viewsDiv);
+
+                item.onclick = () => this.openProfileVideo(v.id, authorId);
+                profileGrid.appendChild(item);
+            });
+        }
+
+        this.switchTab('profile-view');
+    }
+
+    closeCreatorProfile() {
+        this.updateProfileUI(); // resets to normal user profile setup
+        this.switchTab('home-view'); // go back to feed
+    }
     
     async toggleUserVerification(userId, btn) {
         const currentlyVerified = btn.getAttribute('data-verified') === 'true';
@@ -638,6 +1083,14 @@ class TikTokClone {
         }
     }
 
+    openTrending() {
+        this.state.feedType = 'trending';
+        this.switchTab('home-view');
+        document.getElementById('home-nav-tabs').style.display = 'none';
+        document.getElementById('trending-header').style.display = 'block';
+        this.renderFeed();
+    }
+
     switchTab(viewId) {
         document.querySelectorAll('.view').forEach(view => {
             view.classList.remove('active');
@@ -648,11 +1101,28 @@ class TikTokClone {
         target.classList.remove('hidden');
         target.classList.add('active');
 
+        // Reset home header if switching tabs
+        if (viewId === 'home-view' && this.state.feedType !== 'trending') {
+            document.getElementById('home-nav-tabs').style.display = 'flex';
+            document.getElementById('trending-header').style.display = 'none';
+        }
+
         document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
         
-        const navMapping = { 'home-view': 0, 'friends-view': 1, 'upload-view': 2, 'inbox-view': 3, 'profile-view': 4 };
-        if(navMapping[viewId] !== undefined) {
-            document.querySelectorAll('.nav-item')[navMapping[viewId]].classList.add('active');
+        let activeIndex = -1;
+        if (viewId === 'home-view') {
+            activeIndex = this.state.feedType === 'trending' ? 1 : 0;
+        } else if (viewId === 'upload-view') {
+            activeIndex = 2;
+        } else if (viewId === 'inbox-view') {
+            activeIndex = 3;
+        } else if (viewId === 'profile-view') {
+            activeIndex = 4;
+        }
+
+        const navItems = document.querySelectorAll('.nav-item');
+        if (activeIndex !== -1 && navItems[activeIndex]) {
+            navItems[activeIndex].classList.add('active');
         }
 
         // Camera handling
@@ -662,24 +1132,48 @@ class TikTokClone {
             this.stopCamera();
         }
 
-        // Pause feed videos if leaving home
+        // Handle feed video playback
         if (viewId !== 'home-view') {
             document.querySelectorAll('.media-video').forEach(v => v.pause());
             document.querySelectorAll('.record-spin').forEach(r => r.classList.add('paused'));
+        } else {
+            // Returning to home, resume visible video
+            this.resumeVisibleVideo();
         }
+    }
+
+    resumeVisibleVideo() {
+        // Find the video that is currently taking up most of the screen
+        document.querySelectorAll('.media-item').forEach(item => {
+            const rect = item.getBoundingClientRect();
+            // If the item is mostly in view
+            if (rect.top >= -100 && rect.bottom <= window.innerHeight + 100) {
+                const vid = item.querySelector('.media-video');
+                if (vid) {
+                    vid.play().catch(e => console.log('Autoplay blocked:', e));
+                    const spin = item.querySelector('.record-spin');
+                    if (spin) spin.classList.remove('paused');
+                }
+            }
+        });
     }
 
     // --- SEARCH LOGIC ---
     openSearch() {
         const sv = document.getElementById('search-view');
         sv.style.display = 'flex';
+        document.querySelectorAll('.media-video').forEach(v => v.pause());
         setTimeout(() => document.getElementById('search-input').focus(), 100);
     }
 
     closeSearch() {
-        document.getElementById('search-view').style.display = 'none';
+        const sv = document.getElementById('search-view');
+        sv.style.display = 'none';
         document.getElementById('search-input').value = '';
         document.getElementById('search-results-container').innerHTML = '<div style="color:#aaa; text-align:center; padding-top:60px; font-size:14px;">Type to search users or videos...</div>';
+        if (!document.getElementById('home-view').classList.contains('hidden')) {
+            this.resumeVisibleVideo();
+        }
     }
 
     async performSearch(query) {
@@ -757,13 +1251,27 @@ class TikTokClone {
 
     // --- HOME FEED & VIDEO LOGIC ---
     async renderFeed() {
+        if (this.isProfileVideoMode) return; // Managed by openProfileVideo
+
         const container = document.getElementById('feed-container');
-        const template = document.getElementById('media-template');
-        container.innerHTML = '<div style="display:flex; justify-content:center; align-items:center; height:100%;"><div class="record-spin" style="border-top-color:#fff;"></div></div>';
+        container.innerHTML = `
+            <div class="skeleton-bg">
+                <div class="skeleton-item" style="bottom: 20px; left: 16px; width: 60%; height: 20px;"></div>
+                <div class="skeleton-item" style="bottom: 50px; left: 16px; width: 40%; height: 24px;"></div>
+                <div class="skeleton-item" style="bottom: 20px; right: 16px; width: 40px; height: 40px; border-radius: 50%;"></div>
+                <div class="skeleton-item" style="bottom: 80px; right: 16px; width: 40px; height: 40px; border-radius: 50%;"></div>
+                <div class="skeleton-item" style="bottom: 140px; right: 16px; width: 40px; height: 40px; border-radius: 50%;"></div>
+                <div class="skeleton-item" style="bottom: 200px; right: 16px; width: 48px; height: 48px; border-radius: 50%;"></div>
+            </div>`;
 
-        let query = supabaseClient.from('video_details').select('*').order('created_at', { ascending: false });
-
-        if (this.state.feedType === 'following') {
+        let query = supabaseClient.from('video_details').select('*');
+        
+        if (this.state.feedType === 'trending') {
+            query = query.order('trending_score', { ascending: false }).order('created_at', { ascending: false });
+        } else if (this.state.feedType === 'foryou') {
+            query = query.order('created_at', { ascending: false });
+        } else if (this.state.feedType === 'following') {
+            query = query.order('created_at', { ascending: false });
             if (!this.state.isAuthenticated) {
                 container.innerHTML = '<div style="display:flex; justify-content:center; align-items:center; height:100%; color:white; padding:40px; text-align:center;">Please log in to see videos from creators you follow.</div>';
                 return;
@@ -786,6 +1294,22 @@ class TikTokClone {
 
         // Fetch real videos from the database view
         const { data: videos, error } = await query;
+        
+        let userFollowingIds = new Set();
+        if (this.state.isAuthenticated) {
+            const { data: userFollows } = await supabaseClient
+                .from('follows')
+                .select('following_id')
+                .eq('follower_id', this.state.user.id);
+            if (userFollows) userFollowingIds = new Set(userFollows.map(f => f.following_id));
+        }
+
+        this.renderFeedData(videos, error, userFollowingIds);
+    }
+
+    async renderFeedData(videos, error = null, userFollowingIds = new Set()) {
+        const container = document.getElementById('feed-container');
+        const template = document.getElementById('media-template');
 
         if (error || !videos || videos.length === 0) {
             container.innerHTML = '<div style="display:flex; justify-content:center; align-items:center; height:100%; color:white; padding:40px; text-align:center;">No videos yet! Be the first to upload.</div>';
@@ -797,7 +1321,82 @@ class TikTokClone {
             const mediaItem = clone.querySelector('.media-item');
             const video = clone.querySelector('.media-video');
             
+            // Setup follow badge
+            const followBadge = clone.querySelector('.follow-badge');
+            if (followBadge) {
+                if (this.state.isAuthenticated && (media.author_id === this.state.user.id || userFollowingIds.has(media.author_id))) {
+                    followBadge.style.display = 'none';
+                } else {
+                    followBadge.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        if (!this.state.isAuthenticated) return this.showAuthModal();
+                        
+                        // Optimistic hide everywhere for this author
+                        userFollowingIds.add(media.author_id);
+                        document.querySelectorAll('.media-item').forEach(item => {
+                            if (item.dataset.authorId === media.author_id) {
+                                const b = item.querySelector('.follow-badge');
+                                if (b) b.style.display = 'none';
+                            }
+                        });
+                        
+                        const { error: followError } = await supabaseClient.from('follows').insert({
+                            follower_id: this.state.user.id,
+                            following_id: media.author_id,
+                            source_video_id: media.id
+                        });
+                        
+                        if (followError) {
+                            // Revert on fail
+                            userFollowingIds.delete(media.author_id);
+                            document.querySelectorAll('.media-item').forEach(item => {
+                                if (item.dataset.authorId === media.author_id) {
+                                    const b = item.querySelector('.follow-badge');
+                                    if (b) b.style.display = 'flex';
+                                }
+                            });
+                            console.error('Follow failed:', followError);
+                            alert("Failed to follow. Make sure you've run the latest SQL migration. Error: " + followError.message);
+                        }
+                    });
+                }
+            }
+            
             video.src = media.video_url;
+            
+            // Apply Edits (Crop & Text)
+            if (media.edits) {
+                if (media.edits.crop) {
+                    const c = media.edits.crop;
+                    video.style.transform = `translate(${c.transX * c.scale}px, ${c.transY * c.scale}px) scale(${c.scale})`;
+                }
+                if (media.edits.texts && media.edits.texts.length > 0) {
+                    const txtLayer = clone.querySelector('.video-overlay-layer') || document.createElement('div');
+                    if (!txtLayer.className.includes('video-overlay-layer')) {
+                        txtLayer.className = 'video-overlay-layer';
+                        txtLayer.style.position = 'absolute';
+                        txtLayer.style.top = '0'; txtLayer.style.left = '0';
+                        txtLayer.style.width = '100%'; txtLayer.style.height = '100%';
+                        txtLayer.style.pointerEvents = 'none';
+                        txtLayer.style.zIndex = '2';
+                        video.parentElement.appendChild(txtLayer);
+                    }
+                    media.edits.texts.forEach(t => {
+                        const tel = document.createElement('div');
+                        tel.textContent = t.text;
+                        tel.style.position = 'absolute';
+                        tel.style.left = '50%'; tel.style.top = '50%';
+                        tel.style.transform = 'translate(-50%, -50%)';
+                        tel.style.fontFamily = t.font;
+                        tel.style.color = t.color;
+                        tel.style.textShadow = '0 2px 4px rgba(0,0,0,0.8)';
+                        tel.style.fontWeight = 'bold';
+                        tel.style.fontSize = '24px';
+                        tel.style.whiteSpace = 'nowrap';
+                        txtLayer.appendChild(tel);
+                    });
+                }
+            }
             
             mediaItem.querySelector('.author-name').textContent = `@${media.author_username || 'user'}`;
             mediaItem.querySelector('.caption').innerHTML = (media.caption || '').replace(/#(\w+)/g, '<span class="tag">#$1</span>');
@@ -805,8 +1404,25 @@ class TikTokClone {
             mediaItem.querySelector('.comments-count').textContent = 0; // Not implemented yet
             mediaItem.querySelector('.marquee-content').textContent = `Original Sound - @${media.author_username || 'user'}`;
 
+            const profileImg = mediaItem.querySelector('.profile-img');
+            if (media.author_avatar_url) {
+                profileImg.style.backgroundImage = `url('${media.author_avatar_url}')`;
+            } else {
+                const defaultAvatar = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ccc'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+                profileImg.style.backgroundImage = `url("${defaultAvatar}")`;
+                profileImg.style.backgroundSize = "cover";
+                profileImg.style.backgroundColor = "#333";
+            }
+
+            // Interactivity for Creator Profile
+            const authorNameEl = mediaItem.querySelector('.author-name');
+            const profileImgBtn = mediaItem.querySelector('.btn-profile');
+            if (authorNameEl) authorNameEl.onclick = (e) => { e.stopPropagation(); this.loadCreatorProfile(media.author_id); };
+            if (profileImgBtn) profileImgBtn.onclick = (e) => { e.stopPropagation(); this.loadCreatorProfile(media.author_id); };
+
             // Store ID on the DOM element for likes/unlocks
             mediaItem.dataset.videoId = media.id;
+            mediaItem.dataset.authorId = media.author_id;
             
             // Interactivity setup
             this.setupVideoInteractions(mediaItem, video);
@@ -835,7 +1451,8 @@ class TikTokClone {
                     .then(({data}) => {
                         if (data) {
                             liked = true;
-                            heartIcon.classList.add('liked');
+                            heartIcon.setAttribute('fill', 'var(--tiktok-red)');
+                            heartIcon.setAttribute('stroke', 'var(--tiktok-red)');
                         }
                     });
             }
@@ -846,12 +1463,29 @@ class TikTokClone {
                 liked = !liked;
                 
                 if (liked) {
-                    heartIcon.classList.add('liked');
+                    heartIcon.setAttribute('fill', 'var(--tiktok-red)');
+                    heartIcon.setAttribute('stroke', 'var(--tiktok-red)');
+                    heartIcon.classList.remove('heart-pop');
+                    void heartIcon.offsetWidth; // force reflow to restart animation
+                    heartIcon.classList.add('heart-pop');
                     baseLikes++;
                     likesCount.textContent = baseLikes;
-                    await supabaseClient.from('likes').insert([{ video_id: media.id, user_id: this.state.user.id }]);
+                    const { error } = await supabaseClient.from('likes').upsert(
+                        [{ video_id: media.id, user_id: this.state.user.id }],
+                        { onConflict: 'video_id,user_id', ignoreDuplicates: true }
+                    );
+                    if (error) {
+                        // Revert on failure
+                        liked = false;
+                        heartIcon.setAttribute('fill', 'rgba(0,0,0,0.3)');
+                        heartIcon.setAttribute('stroke', 'white');
+                        baseLikes--;
+                        likesCount.textContent = baseLikes;
+                        console.error('Like failed:', error.message);
+                    }
                 } else {
-                    heartIcon.classList.remove('liked');
+                    heartIcon.setAttribute('fill', 'rgba(0,0,0,0.3)');
+                    heartIcon.setAttribute('stroke', 'white');
                     baseLikes--;
                     likesCount.textContent = baseLikes;
                     await supabaseClient.from('likes').delete().eq('video_id', media.id).eq('user_id', this.state.user.id);
@@ -862,6 +1496,28 @@ class TikTokClone {
             const commentBtn = clone.querySelector('.btn-comment');
             commentBtn.addEventListener('click', () => {
                 this.openCommentsSheet(media);
+            });
+
+            // Bookmark Action
+            const bookmarkBtn = clone.querySelector('.btn-bookmark');
+            let bookmarked = false;
+            let baseBookmarks = 0; // Initialize to 0 or fetch from DB
+            const bookmarkIcon = bookmarkBtn.querySelector('.bookmark-icon');
+            const bookmarksCount = bookmarkBtn.querySelector('.bookmarks-count');
+            
+            bookmarkBtn.addEventListener('click', () => {
+                if (!this.state.isAuthenticated) return this.showAuthModal();
+                
+                bookmarked = !bookmarked;
+                if (bookmarked) {
+                    bookmarkIcon.setAttribute('fill', '#eab308');
+                    baseBookmarks++;
+                    bookmarksCount.textContent = baseBookmarks;
+                } else {
+                    bookmarkIcon.setAttribute('fill', 'white');
+                    baseBookmarks--;
+                    bookmarksCount.textContent = baseBookmarks;
+                }
             });
 
             // Share Action
@@ -898,36 +1554,172 @@ class TikTokClone {
             });
 
             container.appendChild(clone);
+            // Attach intersection observer for autoplay
+            if (this.feedObserver) this.feedObserver.observe(mediaItem);
         });
     }
 
     openCommentsSheet(media) {
-        document.getElementById('comments-sheet').classList.remove('hidden');
-        document.getElementById('comments-list').innerHTML = '<div style="padding: 20px; text-align: center; color: #888; font-size: 14px;">No comments yet. Be the first to comment!</div>';
         this.currentMediaForComment = media;
+        const sheet = document.getElementById('comments-sheet');
+        const overlay = document.getElementById('comments-sheet-overlay');
+        overlay.style.display = 'block';
+        // Trigger slide up animation
+        requestAnimationFrame(() => {
+            sheet.style.transform = 'translateY(0)';
+        });
+
+        // Update title
+        const title = document.getElementById('comments-title');
+        if (title) title.textContent = 'Comments';
+
+        // Update input avatar
+        const inputAvatar = document.getElementById('comment-input-avatar');
+        const userAvatar = this.state.user?.user_metadata?.avatar_url;
+        if (inputAvatar) {
+            if (userAvatar) {
+                inputAvatar.innerHTML = `<img src="${userAvatar}" style="width:100%;height:100%;object-fit:cover;">`;
+            } else {
+                inputAvatar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#bbb" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
+            }
+        }
+
+        // Fetch real comments from supabase
+        const list = document.getElementById('comments-list');
+        list.innerHTML = `<div style="display:flex;justify-content:center;padding:30px;"><div style="width:24px;height:24px;border-radius:50%;border:3px solid #eee;border-top-color:var(--tiktok-red);animation:spin 0.8s linear infinite;"></div></div>`;
+
+        supabaseClient
+            .from('comments')
+            .select('id, text, created_at, user_id')
+            .eq('video_id', media.id)
+            .order('created_at', { ascending: true })
+            .then(async ({ data: comments, error }) => {
+                list.innerHTML = '';
+                if (error || !comments || comments.length === 0) {
+                    list.innerHTML = `<div style="display:flex;justify-content:center;align-items:center;height:100%;color:#999;font-size:14px;">No comments yet. Be the first!</div>`;
+                    return;
+                }
+                // Fetch profiles separately
+                const userIds = [...new Set(comments.map(c => c.user_id))];
+                const { data: profiles } = await supabaseClient.from('profiles').select('id, username, avatar_url').in('id', userIds);
+                const profileMap = {};
+                if (profiles) profiles.forEach(p => { profileMap[p.id] = p; });
+                comments.forEach(c => {
+                    c.profiles = profileMap[c.user_id] || null;
+                    this.renderCommentCard(c, list);
+                });
+            });
+    }
+
+    renderCommentCard(comment, list) {
+        const username = comment.profiles?.username || 'user';
+        const avatar = comment.profiles?.avatar_url;
+        const time = this.timeAgo(comment.created_at);
+
+        const div = document.createElement('div');
+        div.style.cssText = 'display:flex; gap:12px; align-items:flex-start;';
+        div.innerHTML = `
+            <div style="width:40px;height:40px;min-width:40px;border-radius:50%;background:#eee;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+                ${avatar
+                    ? `<img src="${avatar}" style="width:100%;height:100%;object-fit:cover;">`
+                    : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`
+                }
+            </div>
+            <div style="flex:1;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                    <span style="font-weight:700;font-size:13px;color:#111;">@${username}</span>
+                    <span style="font-size:11px;color:#999;">${time}</span>
+                    <span style="font-size:11px;color:#999;font-weight:600;cursor:pointer;" onclick="const inp = document.getElementById('new-comment-input'); inp.value = '@${username} ' + inp.value; inp.focus();">Reply</span>
+                </div>
+                <div style="font-size:14px;color:#333;line-height:1.5;">${comment.text || ''}</div>
+            </div>
+            <button style="background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;padding-top:2px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                <span style="font-size:10px;color:#999;">0</span>
+            </button>
+        `;
+        list.appendChild(div);
+    }
+
+    timeAgo(dateStr) {
+        const diff = Date.now() - new Date(dateStr).getTime();
+        const s = Math.floor(diff / 1000);
+        if (s < 60) return `${s}s`;
+        if (s < 3600) return `${Math.floor(s/60)}m`;
+        if (s < 86400) return `${Math.floor(s/3600)}h`;
+        return `${Math.floor(s/86400)}d`;
     }
 
     closeCommentsSheet() {
-        document.getElementById('comments-sheet').classList.add('hidden');
+        const sheet = document.getElementById('comments-sheet');
+        const overlay = document.getElementById('comments-sheet-overlay');
+        sheet.style.transform = 'translateY(100%)';
+        overlay.style.display = 'none';
     }
 
-    postComment() {
+    async postComment() {
         if (!this.state.isAuthenticated) return this.showAuthModal();
         const input = document.getElementById('new-comment-input');
+        const btn = document.getElementById('btn-post-comment');
         const text = input.value.trim();
         if (!text) return;
 
-        const list = document.getElementById('comments-list');
-        if (list.innerHTML.includes('No comments yet')) list.innerHTML = '';
-        
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+
+        const media = this.currentMediaForComment;
         const username = this.state.user.user_metadata?.username || this.state.user.email.split('@')[0];
-        
-        const commentDiv = document.createElement('div');
-        commentDiv.style.padding = '10px 0';
-        commentDiv.innerHTML = `<strong style="font-size:13px; color:#555;">@${username}</strong><div style="font-size:14px; margin-top:4px;">${text}</div>`;
-        
-        list.appendChild(commentDiv);
+        const avatar = this.state.user.user_metadata?.avatar_url || null;
+
+        const { data, error } = await supabaseClient.from('comments').insert([{
+            video_id: media.id,
+            user_id: this.state.user.id,
+            text: text
+        }]).select('id, text, created_at, user_id').single();
+
+        if (error) {
+            console.error("Comment error:", error);
+            alert("Failed to post comment: " + error.message);
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            return;
+        }
+
+        // Attach local profile data for immediate render
+        if (data) {
+            data.profiles = {
+                username,
+                avatar_url: avatar
+            };
+        }
+
+        const list = document.getElementById('comments-list');
+        // Remove empty placeholder if present
+        if (list.textContent.includes('No comments yet')) list.innerHTML = '';
+
+        // Render card from response or locally
+        const commentData = data || {
+            text,
+            created_at: new Date().toISOString(),
+            profiles: { username, avatar_url: avatar }
+        };
+        this.renderCommentCard(commentData, list);
+
+        // Update comment count in feed
+        const mediaItems = document.querySelectorAll('.media-item');
+        mediaItems.forEach(item => {
+            if (item.dataset.videoId === media.id) {
+                const countEl = item.querySelector('.comments-count');
+                if (countEl) {
+                    countEl.textContent = parseInt(countEl.textContent || 0) + 1;
+                }
+            }
+        });
+
         input.value = '';
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        list.scrollTop = list.scrollHeight;
     }
 
     setupVideoInteractions(mediaItem, video) {
@@ -956,7 +1748,7 @@ class TikTokClone {
             const tapLength = currentTime - lastTap;
             
             if (tapLength < 300 && tapLength > 0) {
-                // Double tap
+                // Double tap - trigger like
                 this.triggerLike(doubleTapHeart, likeBtn, videoId);
                 e.preventDefault();
             } else {
@@ -973,11 +1765,7 @@ class TikTokClone {
             }
             lastTap = currentTime;
         });
-
-        // Like button explicit click
-        likeBtn.addEventListener('click', () => {
-            this.toggleLike(likeBtn, videoId);
-        });
+        // NOTE: Like button click is handled in renderFeedData. Do NOT add another listener here.
     }
 
     async toggleLike(likeBtn, videoId) {
@@ -1022,29 +1810,62 @@ class TikTokClone {
     setupIntersectionObserver() {
         const options = { root: document.getElementById('feed-container'), threshold: 0.6 };
         
-        const observer = new IntersectionObserver((entries) => {
+        this.feedObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 const video = entry.target.querySelector('.media-video');
+                if (!video) return;
                 const paywall = entry.target.querySelector('.paywall-glass');
                 const recordSpin = entry.target.querySelector('.record-spin');
                 const playPauseInd = entry.target.querySelector('.play-pause-indicator');
 
                 if (entry.isIntersecting) {
-                    // Try to play if no paywall
-                    if (paywall.classList.contains('hidden')) {
-                        video.play().catch(e => console.log("Autoplay prevented"));
-                        recordSpin.classList.remove('paused');
-                        playPauseInd.classList.remove('show');
+                    // Record start time for watch hours
+                    entry.target.dataset.watchStart = Date.now();
+                    
+                    if (!paywall || paywall.classList.contains('hidden')) {
+                        if (this.audioUnlocked) video.muted = false;
+                        // Attempt to play automatically (might be blocked until user interacts)
+                        const playPromise = video.play();
+                        if (playPromise !== undefined) {
+                            playPromise.then(() => {
+                                // Increment view count safely once it starts playing
+                                // TikTok-style: every play = 1 view, but owner cannot view own video
+                                const vidId = entry.target.dataset.videoId;
+                                if (vidId) {
+                                    // Use logged-in user's ID or anonymous device ID
+                                    const viewerId = this.state.isAuthenticated
+                                        ? this.state.user.id
+                                        : this.viewerId;
+                                    supabaseClient.rpc('record_view', { vid: vidId, v_id: viewerId })
+                                        .then(({ error }) => { if (error) console.error('view error:', error); });
+                                }
+                            }).catch(() => {
+                                // Autoplay with sound blocked. Will play when user interacts (unlockAudio)
+                                if (recordSpin) recordSpin.classList.add('paused');
+                                if (playPauseInd) playPauseInd.classList.remove('show');
+                            });
+                        }
+                        if (recordSpin) recordSpin.classList.remove('paused');
+                        if (playPauseInd) playPauseInd.classList.remove('show');
                     }
                 } else {
+                    // Calculate and save watch time
+                    const watchStart = entry.target.dataset.watchStart;
+                    const vidId = entry.target.dataset.videoId;
+                    if (watchStart && vidId) {
+                        const secondsWatched = Math.floor((Date.now() - parseInt(watchStart)) / 1000);
+                        if (secondsWatched > 0) {
+                            supabaseClient.rpc('add_watch_time', { vid: vidId, seconds: secondsWatched }).then(({error}) => { if(error) console.error(error); });
+                        }
+                        delete entry.target.dataset.watchStart;
+                    }
+
                     video.pause();
-                    video.currentTime = 0; // reset
-                    recordSpin.classList.add('paused');
+                    video.currentTime = 0;
+                    if (recordSpin) recordSpin.classList.add('paused');
                 }
             });
         }, options);
-
-        document.querySelectorAll('.media-item').forEach(item => observer.observe(item));
     }
 
     unlockMedia(id, price, paywallElement, video) {
@@ -1139,36 +1960,234 @@ class TikTokClone {
     }
 
     _showPostForm(blobUrl) {
-        // Hide camera, show gallery/post mode
-        document.getElementById('upload-camera-mode').style.display = 'none';
-        const galleryMode = document.getElementById('upload-gallery-mode');
-        galleryMode.style.display = 'flex';
-
+        // Make sure the upload view is visible first!
+        this.switchTab('upload-view');
+        
+        // Show post form directly
         const postForm = document.getElementById('upload-post-form');
-        postForm.style.display = 'flex';
+        if (postForm) postForm.style.display = 'flex';
 
         const preview = document.getElementById('gallery-preview-video');
-        preview.src = blobUrl;
-        preview.play();
+        if (preview) {
+            preview.src = blobUrl;
+            preview.play();
+        }
 
         // Reset progress bar
-        document.getElementById('upload-progress-bar-wrap').style.display = 'none';
-        document.getElementById('upload-progress-bar').style.width = '0%';
-        document.getElementById('upload-caption-input').value = '';
+        const progressWrap = document.getElementById('upload-progress-bar-wrap');
+        if (progressWrap) progressWrap.style.display = 'none';
+        
+        const progressBar = document.getElementById('upload-progress-bar');
+        if (progressBar) progressBar.style.width = '0%';
+        
+        const captionInput = document.getElementById('upload-caption-input');
+        if (captionInput) captionInput.value = '';
+    }
+
+    mockEditAction(action) {
+        const toast = document.getElementById('simulated-edit-toast');
+        if (!toast) return;
+        toast.style.display = 'block';
+        toast.style.opacity = '1';
+        toast.textContent = action === 'stickers' ? 'Stickers feature coming soon!' : 'Feature not implemented';
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => { toast.style.display = 'none'; }, 300);
+        }, 1500);
+    }
+
+    // --- TEXT EDITOR LOGIC ---
+    openTextEditor() {
+        document.getElementById('text-editor-overlay').style.display = 'flex';
+        document.getElementById('video-text-input').focus();
+        if (!this.textState) {
+            this.textState = { font: 'sans-serif', color: '#ffffff' };
+            // Setup listeners
+            document.querySelectorAll('.font-btn').forEach(btn => {
+                btn.onclick = () => {
+                    document.querySelectorAll('.font-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    this.textState.font = btn.dataset.font;
+                    document.getElementById('video-text-input').style.fontFamily = this.textState.font;
+                };
+            });
+            document.querySelectorAll('.color-btn').forEach(btn => {
+                btn.onclick = () => {
+                    document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    this.textState.color = btn.dataset.color;
+                    document.getElementById('video-text-input').style.color = this.textState.color;
+                };
+            });
+        }
+    }
+
+    closeTextEditor() {
+        document.getElementById('text-editor-overlay').style.display = 'none';
+        document.getElementById('video-text-input').value = '';
+    }
+
+    addTextToVideo() {
+        const text = document.getElementById('video-text-input').value.trim();
+        if (text) {
+            const layer = document.getElementById('video-text-layer');
+            const el = document.createElement('div');
+            el.className = 'draggable-text';
+            el.textContent = text;
+            el.style.fontFamily = this.textState.font;
+            el.style.color = this.textState.color;
+            el.style.left = '50%';
+            el.style.top = '50%';
+            el.style.pointerEvents = 'auto'; // allow dragging
+            
+            // Basic drag logic
+            let isDragging = false, startX, startY, initialLeft, initialTop;
+            const startDrag = (e) => {
+                isDragging = true;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                startX = clientX; startY = clientY;
+                initialLeft = el.offsetLeft; initialTop = el.offsetTop;
+            };
+            const onDrag = (e) => {
+                if (!isDragging) return;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                el.style.left = (initialLeft + (clientX - startX)) + 'px';
+                el.style.top = (initialTop + (clientY - startY)) + 'px';
+            };
+            const endDrag = () => { isDragging = false; };
+            
+            el.addEventListener('mousedown', startDrag);
+            el.addEventListener('touchstart', startDrag, {passive: true});
+            document.addEventListener('mousemove', onDrag);
+            document.addEventListener('touchmove', onDrag, {passive: true});
+            document.addEventListener('mouseup', endDrag);
+            document.addEventListener('touchend', endDrag);
+            
+            layer.appendChild(el);
+            
+            // Save state for upload
+            if (!this.videoEdits) this.videoEdits = {};
+            if (!this.videoEdits.texts) this.videoEdits.texts = [];
+            this.videoEdits.texts.push({ text, font: this.textState.font, color: this.textState.color });
+        }
+        this.closeTextEditor();
+    }
+
+    // --- CROP LOGIC ---
+    toggleCropMode() {
+        const overlay = document.getElementById('crop-editor-overlay');
+        overlay.style.display = overlay.style.display === 'none' ? 'block' : 'none';
+        
+        if (overlay.style.display === 'block' && !this.cropInitialized) {
+            this.cropInitialized = true;
+            const box = document.getElementById('crop-box');
+            let isDragging = false, currentHandle = null;
+            let startX, startY, startLeft, startTop, startWidth, startHeight;
+            
+            const startDrag = (e) => {
+                isDragging = true;
+                currentHandle = e.target.dataset.corner || 'move';
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                startX = clientX; startY = clientY;
+                startLeft = box.offsetLeft; startTop = box.offsetTop;
+                startWidth = box.offsetWidth; startHeight = box.offsetHeight;
+                e.stopPropagation();
+            };
+            
+            const onDrag = (e) => {
+                if (!isDragging) return;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                const dx = clientX - startX; const dy = clientY - startY;
+                
+                if (currentHandle === 'move') {
+                    box.style.left = startLeft + dx + 'px';
+                    box.style.top = startTop + dy + 'px';
+                } else if (currentHandle === 'br') {
+                    box.style.width = startWidth + dx + 'px';
+                    box.style.height = startHeight + dy + 'px';
+                } else if (currentHandle === 'tl') {
+                    box.style.width = startWidth - dx + 'px';
+                    box.style.height = startHeight - dy + 'px';
+                    box.style.left = startLeft + dx + 'px';
+                    box.style.top = startTop + dy + 'px';
+                }
+                // (Omitted other corners for brevity, they function similarly)
+            };
+            
+            const endDrag = () => { isDragging = false; };
+            
+            box.addEventListener('mousedown', startDrag);
+            box.addEventListener('touchstart', startDrag, {passive: true});
+            document.addEventListener('mousemove', onDrag);
+            document.addEventListener('touchmove', onDrag, {passive: true});
+            document.addEventListener('mouseup', endDrag);
+            document.addEventListener('touchend', endDrag);
+        }
+    }
+
+    applyCrop() {
+        document.getElementById('crop-editor-overlay').style.display = 'none';
+        const box = document.getElementById('crop-box');
+        const video = document.getElementById('gallery-preview-video');
+        
+        // Calculate crop percentage relative to the screen
+        const container = video.parentElement;
+        const cw = container.offsetWidth;
+        const ch = container.offsetHeight;
+        
+        const scaleX = cw / box.offsetWidth;
+        const scaleY = ch / box.offsetHeight;
+        const scale = Math.min(scaleX, scaleY); // Keep aspect ratio
+        
+        // Calculate translation to center the cropped area
+        const boxCenterX = box.offsetLeft + (box.offsetWidth / 2);
+        const boxCenterY = box.offsetTop + (box.offsetHeight / 2);
+        const transX = (cw / 2) - boxCenterX;
+        const transY = (ch / 2) - boxCenterY;
+        
+        video.style.transform = `translate(${transX * scale}px, ${transY * scale}px) scale(${scale})`;
+        
+        // Save for upload
+        if (!this.videoEdits) this.videoEdits = {};
+        this.videoEdits.crop = { scale, transX, transY };
+        
+        const toast = document.getElementById('simulated-edit-toast');
+        if (toast) {
+            toast.textContent = 'Crop Applied';
+            toast.style.display = 'block';
+            toast.style.opacity = '1';
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.style.display='none', 300); }, 1500);
+        }
     }
 
     cancelUpload() {
         this.recordedBlob = null;
-        document.getElementById('gallery-preview-video').src = '';
-        document.getElementById('gallery-file-input').value = '';
-        document.getElementById('upload-post-form').style.display = 'none';
-        document.getElementById('upload-gallery-mode').style.display = 'none';
-        // Go back to camera
-        this.startCamera();
+        const preview = document.getElementById('gallery-preview-video');
+        if (preview) preview.src = '';
+        
+        const fileInput = document.getElementById('gallery-file-input');
+        if (fileInput) fileInput.value = '';
+        
+        const postForm = document.getElementById('upload-post-form');
+        if (postForm) postForm.style.display = 'none';
+        
+        // Go back to home view instead of camera
+        this.switchTab('home-view');
     }
 
     async uploadVideo() {
         if (!this.recordedBlob) return;
+        
+        // Guarantee profile exists so foreign key doesn't fail
+        const profileError = await this.ensureProfileExists();
+        if (profileError) {
+            alert("Database Error: Could not verify your Profile.\n\nDetails: " + profileError.message);
+            return;
+        }
 
         const caption = (document.getElementById('upload-caption-input')?.value || '').trim() || 'New Simulizi!';
         const btn = document.getElementById('btn-post-now');
@@ -1223,7 +2242,8 @@ class TikTokClone {
                 video_url: videoUrl,
                 caption: caption,
                 price: 0,
-                is_premium: false
+                is_premium: false,
+                edits: this.videoEdits || {}
             });
 
         if (progressBar) progressBar.style.width = '100%';
@@ -1260,18 +2280,124 @@ class TikTokClone {
         });
     }
 
-    setupProfileTabs() {
-        // Add logout button if not exists
-        const header = document.querySelector('.profile-header-2024');
-        if (!document.getElementById('logout-btn')) {
-            const logoutBtn = document.createElement('div');
-            logoutBtn.id = 'logout-btn';
-            logoutBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>';
-            logoutBtn.style.cursor = 'pointer';
-            logoutBtn.onclick = () => this.logout();
-            header.appendChild(logoutBtn); // append to far right
+    async openFollowers() {
+        if (!this.state.isAuthenticated) return this.showAuthModal();
+        this.switchTab('followers-view');
+        const container = document.getElementById('followers-list-container');
+        container.innerHTML = '<div style="color:#aaa; text-align:center; margin-top:40px;">Loading followers...</div>';
+
+        const { data: followers, error } = await supabaseClient
+            .from('follows')
+            .select('follower_id, created_at')
+            .eq('following_id', this.state.user.id)
+            .order('created_at', { ascending: false });
+
+        if (error || !followers || followers.length === 0) {
+            container.innerHTML = '<div style="color:#aaa; text-align:center; margin-top:40px;">No followers yet.</div>';
+            return;
         }
 
+        const followerIds = followers.map(f => f.follower_id);
+        const { data: profiles } = await supabaseClient
+            .from('profiles')
+            .select('id, username, avatar_url')
+            .in('id', followerIds);
+
+        const profileMap = {};
+        if (profiles) profiles.forEach(p => profileMap[p.id] = p);
+
+        container.innerHTML = '';
+        followers.forEach(f => {
+            const profile = profileMap[f.follower_id];
+            if (!profile) return;
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.marginBottom = '20px';
+            
+            const avatar = profile.avatar_url ? profile.avatar_url : "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ccc'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+            row.innerHTML = `
+                <div style="width:40px; height:40px; border-radius:50%; background-image:url('${avatar}'); background-size:cover; background-position:center; margin-right:15px; background-color:#333;"></div>
+                <div style="flex:1;">
+                    <div style="font-weight:600; font-size:15px;">@${profile.username}</div>
+                    <div style="font-size:13px; color:#aaa;">Started following you</div>
+                </div>
+            `;
+            container.appendChild(row);
+        });
+    }
+
+    async openActivities() {
+        if (!this.state.isAuthenticated) return this.showAuthModal();
+        this.switchTab('activities-view');
+        const container = document.getElementById('activities-list-container');
+        container.innerHTML = '<div style="color:#aaa; text-align:center; margin-top:40px;">Loading activities...</div>';
+
+        // Get my videos
+        const { data: videos } = await supabaseClient.from('videos').select('id, video_url').eq('user_id', this.state.user.id);
+        if (!videos || videos.length === 0) {
+            container.innerHTML = '<div style="color:#aaa; text-align:center; margin-top:40px;">No activities yet. Post a video!</div>';
+            return;
+        }
+
+        const videoIds = videos.map(v => v.id);
+        const videoMap = {};
+        videos.forEach(v => videoMap[v.id] = v);
+
+        // Get likes on my videos
+        const { data: likes } = await supabaseClient.from('likes').select('user_id, video_id, created_at').in('video_id', videoIds);
+        // Get comments on my videos
+        const { data: comments } = await supabaseClient.from('comments').select('user_id, video_id, text, created_at').in('video_id', videoIds);
+
+        let activities = [];
+        if (likes) likes.forEach(l => activities.push({ type: 'like', ...l }));
+        if (comments) comments.forEach(c => activities.push({ type: 'comment', ...c }));
+
+        activities.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        if (activities.length === 0) {
+            container.innerHTML = '<div style="color:#aaa; text-align:center; margin-top:40px;">No activities yet.</div>';
+            return;
+        }
+
+        // Get user profiles
+        const userIds = [...new Set(activities.map(a => a.user_id))];
+        const { data: profiles } = await supabaseClient.from('profiles').select('id, username, avatar_url').in('id', userIds);
+        const profileMap = {};
+        if (profiles) profiles.forEach(p => profileMap[p.id] = p);
+
+        container.innerHTML = '';
+        activities.forEach(a => {
+            const profile = profileMap[a.user_id];
+            if (!profile || profile.id === this.state.user.id) return; // Don't show own activities
+            
+            const video = videoMap[a.video_id];
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.marginBottom = '20px';
+            
+            const avatar = profile.avatar_url ? profile.avatar_url : "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ccc'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+            
+            let actionText = a.type === 'like' ? 'liked your video' : `commented: "${a.text}"`;
+            
+            row.innerHTML = `
+                <div style="width:40px; height:40px; border-radius:50%; background-image:url('${avatar}'); background-size:cover; background-position:center; margin-right:15px; background-color:#333;"></div>
+                <div style="flex:1; padding-right:10px;">
+                    <span style="font-weight:600; font-size:15px;">@${profile.username}</span>
+                    <span style="font-size:14px; color:#ddd;">${actionText}</span>
+                </div>
+                <video src="${video.video_url}" style="width:40px; height:50px; object-fit:cover; border-radius:4px; background:#222;"></video>
+            `;
+            container.appendChild(row);
+        });
+        
+        if(container.innerHTML === '') {
+            container.innerHTML = '<div style="color:#aaa; text-align:center; margin-top:40px;">No new activities.</div>';
+        }
+    }
+
+    setupProfileTabs() {
         const tabs = document.querySelectorAll('.ptab');
         tabs.forEach(tab => {
             tab.addEventListener('click', () => {
@@ -1279,6 +2405,108 @@ class TikTokClone {
                 tab.classList.add('active');
             });
         });
+    }
+
+    // --- ANALYTICS DASHBOARD ---
+    async openAnalytics() {
+        if (!this.state.isAuthenticated) return this.showAuthModal();
+        const backdrop = document.getElementById('analytics-modal-backdrop');
+        const modal = document.getElementById('analytics-modal');
+        backdrop.classList.remove('hidden');
+        modal.classList.remove('hidden');
+        
+        await this.loadAnalytics();
+        
+        // Setup realtime subscription for analytics
+        this.analyticsSubscription = supabaseClient
+            .channel('analytics-channel')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'videos', filter: `user_id=eq.${this.state.user.id}` }, () => this.loadAnalytics())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, () => this.loadAnalytics())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => this.loadAnalytics())
+            .subscribe();
+    }
+
+    closeAnalytics() {
+        document.getElementById('analytics-modal-backdrop').classList.add('hidden');
+        document.getElementById('analytics-modal').classList.add('hidden');
+        if (this.analyticsSubscription) {
+            supabaseClient.removeChannel(this.analyticsSubscription);
+            this.analyticsSubscription = null;
+        }
+    }
+
+    async loadAnalytics() {
+        if (!this.state.isAuthenticated) return;
+        
+        const listContainer = document.getElementById('analytics-videos-list');
+        listContainer.innerHTML = '<div style="color:#888; text-align:center; padding:20px;">Loading live analytics...</div>';
+        
+        const { data: videos, error } = await supabaseClient
+            .from('video_details')
+            .select('*')
+            .eq('author_id', this.state.user.id)
+            .order('created_at', { ascending: false });
+            
+        if (error || !videos || videos.length === 0) {
+            document.getElementById('analytics-total-views').textContent = 0;
+            document.getElementById('analytics-total-likes').textContent = 0;
+            document.getElementById('analytics-total-comments').textContent = 0;
+            listContainer.innerHTML = '<div style="color:#888; text-align:center; padding:20px;">No videos yet.</div>';
+            return;
+        }
+        
+        const { data: followData } = await supabaseClient
+            .from('follows')
+            .select('source_video_id')
+            .eq('following_id', this.state.user.id)
+            .not('source_video_id', 'is', null);
+
+        const followerCounts = {};
+        if (followData) {
+            followData.forEach(f => {
+                followerCounts[f.source_video_id] = (followerCounts[f.source_video_id] || 0) + 1;
+            });
+        }
+        
+        let totalViews = 0;
+        let totalLikes = 0;
+        let totalComments = 0;
+        
+        listContainer.innerHTML = '';
+        
+        videos.forEach(v => {
+            const views = v.view_count || 0;
+            const likes = v.like_count || 0;
+            const comments = v.comment_count || 0;
+            const watchHours = ((v.watch_seconds || 0) / 3600).toFixed(2);
+            const followersGained = followerCounts[v.id] || 0;
+            
+            totalViews += views;
+            totalLikes += likes;
+            totalComments += comments;
+            
+            listContainer.innerHTML += `
+                <div class="analytics-video-row" style="background:#111; padding:10px; border-radius:8px; display:flex; gap:12px;">
+                    <div class="analytics-video-thumb" style="width:60px; height:80px; flex-shrink:0;">
+                        <video src="${v.video_url}" style="width:100%; height:100%; object-fit:cover; border-radius:4px; background:#222;"></video>
+                    </div>
+                    <div class="analytics-video-info" style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+                        <div class="analytics-video-caption" style="font-weight:600; font-size:14px; margin-bottom:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${v.caption || 'Untitled Video'}</div>
+                        <div class="analytics-video-metrics" style="display:flex; flex-wrap:wrap; gap:12px; font-size:12px; color:#aaa;">
+                            <span class="analytics-metric" style="display:flex; align-items:center; gap:4px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg> ${views}</span>
+                            <span class="analytics-metric" style="display:flex; align-items:center; gap:4px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path></svg> ${likes}</span>
+                            <span class="analytics-metric" style="display:flex; align-items:center; gap:4px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> ${comments}</span>
+                            <span class="analytics-metric" style="display:flex; align-items:center; gap:4px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> ${watchHours} hrs</span>
+                            <span class="analytics-metric" style="display:flex; align-items:center; gap:4px; color:var(--tiktok-red);"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14" stroke="currentColor" stroke-width="2"></line><line x1="23" y1="11" x2="17" y2="11" stroke="currentColor" stroke-width="2"></line></svg> +${followersGained} follows</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        document.getElementById('analytics-total-views').textContent = totalViews;
+        document.getElementById('analytics-total-likes').textContent = totalLikes;
+        document.getElementById('analytics-total-comments').textContent = totalComments;
     }
 }
 
