@@ -62,6 +62,13 @@ class TikTokClone {
         this.authMode = 'signup';
         this.mediaRecorder = null;
         this.recordedBlob = null;
+
+        // Generate or retrieve a persistent anonymous viewer ID
+        // This is used to count unique views even when user is not logged in
+        if (!localStorage.getItem('sim_viewer_id')) {
+            localStorage.setItem('sim_viewer_id', 'anon_' + Math.random().toString(36).substr(2, 12));
+        }
+        this.viewerId = localStorage.getItem('sim_viewer_id');
         
         // Listen for the first user interaction to unlock audio
         this.audioUnlocked = false;
@@ -1809,11 +1816,14 @@ class TikTokClone {
                         if (playPromise !== undefined) {
                             playPromise.then(() => {
                                 // Increment view count safely once it starts playing
+                                // Count unique views — use user ID if logged in, otherwise device ID
                                 const vidId = entry.target.dataset.videoId;
-                                if (vidId && (!this.state.viewedVideos || !this.state.viewedVideos.has(vidId))) {
-                                    if (!this.state.viewedVideos) this.state.viewedVideos = new Set();
-                                    this.state.viewedVideos.add(vidId);
-                                    supabaseClient.rpc('increment_view_count', { vid: vidId }).then(({error}) => { if(error) console.error(error); });
+                                if (vidId) {
+                                    const viewerId = this.state.isAuthenticated
+                                        ? this.state.user.id
+                                        : this.viewerId;
+                                    supabaseClient.rpc('record_unique_view', { vid: vidId, v_id: viewerId })
+                                        .then(({ error }) => { if (error) console.error('view error:', error); });
                                 }
                             }).catch(() => {
                                 // Autoplay with sound blocked. Will play when user interacts (unlockAudio)

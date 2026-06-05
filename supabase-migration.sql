@@ -123,14 +123,30 @@ CREATE POLICY "follows_insert" ON follows FOR INSERT WITH CHECK (auth.uid() = fo
 DROP POLICY IF EXISTS "follows_delete" ON follows;
 CREATE POLICY "follows_delete" ON follows FOR DELETE USING (auth.uid() = follower_id);
 
--- 10. RPC for incrementing view count securely
-CREATE OR REPLACE FUNCTION increment_view_count(vid UUID)
+-- 10. RPC for incrementing view count securely and uniquely
+CREATE TABLE IF NOT EXISTS video_views (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    video_id UUID NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    viewer_id TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(video_id, viewer_id)
+);
+ALTER TABLE video_views ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "video_views_select" ON video_views;
+CREATE POLICY "video_views_select" ON video_views FOR SELECT USING (true);
+
+CREATE OR REPLACE FUNCTION record_unique_view(vid UUID, v_id TEXT)
 RETURNS void AS $$
 BEGIN
-  UPDATE videos SET view_count = COALESCE(view_count, 0) + 1 WHERE id = vid;
+  INSERT INTO video_views (video_id, viewer_id)
+  VALUES (vid, v_id)
+  ON CONFLICT (video_id, viewer_id) DO NOTHING;
+  
+  IF FOUND THEN
+    UPDATE videos SET view_count = COALESCE(view_count, 0) + 1 WHERE id = vid;
+  END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
 -- 11. RPC for adding watch time securely
 CREATE OR REPLACE FUNCTION add_watch_time(vid UUID, seconds INT)
 RETURNS void AS $$
