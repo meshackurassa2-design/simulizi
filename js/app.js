@@ -1816,13 +1816,14 @@ class TikTokClone {
                         if (playPromise !== undefined) {
                             playPromise.then(() => {
                                 // Increment view count safely once it starts playing
-                                // Count unique views — use user ID if logged in, otherwise device ID
+                                // TikTok-style: every play = 1 view, but owner cannot view own video
                                 const vidId = entry.target.dataset.videoId;
                                 if (vidId) {
+                                    // Use logged-in user's ID or anonymous device ID
                                     const viewerId = this.state.isAuthenticated
                                         ? this.state.user.id
                                         : this.viewerId;
-                                    supabaseClient.rpc('record_unique_view', { vid: vidId, v_id: viewerId })
+                                    supabaseClient.rpc('record_view', { vid: vidId, v_id: viewerId })
                                         .then(({ error }) => { if (error) console.error('view error:', error); });
                                 }
                             }).catch(() => {
