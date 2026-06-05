@@ -9,9 +9,9 @@ on:
 jobs:
   build:
     name: Build iOS IPA
-    # macos-13 uses Xcode 15 + iOS 17 SDK — CODE_SIGNING_ALLOWED=NO works here.
-    # macos-latest now uses Xcode 16 + iOS 18.5 SDK which BLOCKS unsigned builds.
-    runs-on: macos-13
+    # macos-14 has both Xcode 15 and 16 installed. We pin to Xcode 15.4
+    # to avoid iOS 18.5 SDK which blocks unsigned device builds.
+    runs-on: macos-14
 
     steps:
       # ── 1. Source code ────────────────────────────────────────────────────
