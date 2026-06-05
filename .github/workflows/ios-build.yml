@@ -16,16 +16,31 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      # ── 2. Show available Xcode versions and pin to 15.4 ──────────────────
-      - name: Select Xcode 15.4
+      # ── 2. Show available Xcode versions and pin to any Xcode 15.x ─────────
+      - name: Select Xcode 15.x
         run: |
-          echo "=== Available Xcode versions ==="
-          ls /Applications/ | grep Xcode
-          sudo xcode-select -switch /Applications/Xcode_15.4.app
+          echo "=== All installed Xcode versions ==="
+          ls /Applications/ | grep Xcode || echo "No Xcode apps found"
+          
+          # Find any Xcode 15.x installation dynamically
+          XCODE15=$(ls /Applications/ | grep -E "^Xcode_15" | sort -r | head -1)
+          if [ -n "$XCODE15" ]; then
+            echo "Found: $XCODE15"
+            sudo xcode-select -switch "/Applications/$XCODE15"
+          else
+            echo "WARNING: No Xcode 15.x found. Trying Xcode_16 with iOS 17 SDK..."
+            XCODE16=$(ls /Applications/ | grep -E "^Xcode_16" | sort | head -1)
+            if [ -n "$XCODE16" ]; then
+              sudo xcode-select -switch "/Applications/$XCODE16"
+            else
+              echo "Using default Xcode"
+            fi
+          fi
+          
           echo "=== Active Xcode ==="
           xcodebuild -version
-          echo "=== Active SDK ==="
-          xcodebuild -showsdks | grep iphoneos
+          echo "=== Available iOS SDKs ==="
+          xcodebuild -showsdks | grep iphoneos || true
 
       # ── 3. Node.js ────────────────────────────────────────────────────────
       - name: Setup Node.js
