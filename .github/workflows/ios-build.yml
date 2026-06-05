@@ -36,6 +36,11 @@ jobs:
           npx cap init "Simulizi" "com.meshackurassa2.simulizi" --web-dir www
           node -e "const fs=require('fs'); let cfg=JSON.parse(fs.readFileSync('capacitor.config.json')); cfg.ios={scrollEnabled:false, backgroundColor:'#000000'}; fs.writeFileSync('capacitor.config.json', JSON.stringify(cfg, null, 2));"
           npx cap add ios
+          # Inject privacy descriptions to prevent iOS from crashing the app instantly on launch
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Simulizi needs camera access to record videos.'" ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Simulizi needs microphone access to record audio for videos.'" ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Simulizi needs photo library access to upload and save videos.'" ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Simulizi needs photo library access to save videos.'" ios/App/App/Info.plist
 
       - name: Generate Native App Icons
         run: |
